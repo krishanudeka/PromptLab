@@ -13,7 +13,7 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
 
-# DB Dependency
+# ---------------- DB Dependency ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -27,18 +27,17 @@ def home():
     return {"message": "PromptLab API is running 🚀"}
 
 
-# ✅ Create Prompt
+# ---------------- Create Prompt ----------------
 @app.post("/prompts")
 def create_prompt(data: schemas.PromptCreate, db: Session = Depends(get_db)):
     new_prompt = models.Prompt(name=data.name)
     db.add(new_prompt)
     db.commit()
     db.refresh(new_prompt)
-
     return new_prompt
 
 
-# ✅ Create Version (FIXED VERSIONING)
+# ---------------- Create Version ----------------
 @app.post("/prompts/{prompt_id}/versions")
 def create_version(prompt_id: int, data: schemas.VersionCreate, db: Session = Depends(get_db)):
 
@@ -65,13 +64,35 @@ def create_version(prompt_id: int, data: schemas.VersionCreate, db: Session = De
     return new_version
 
 
-# 🔥 Fake LLM (replace later)
-def fake_llm(prompt, user_input):
-    return f"[Prompt]: {prompt}\n[Answer]: Response to '{user_input}'"
+# ---------------- REAL LLM (GENERATION) ----------------
+def run_llm(prompt, user_input, model="mistral"):
+    full_prompt = f"""
+    {prompt}
+
+    User Input:
+    {user_input}
+    """
+
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": model,
+                "prompt": full_prompt,
+                "stream": False
+            },
+            timeout=15
+        )
+
+        result = response.json().get("response", "").strip()
+        return result
+
+    except Exception as e:
+        return f"LLM Error: {str(e)}"
 
 
-# 🔥 Evaluation (FIXED)
-def evaluate(output):
+# ---------------- LLM EVALUATION ----------------
+def evaluate(output, model="phi"):
     prompt = f"""
     Rate this response from 1 to 10 based on clarity, usefulness, and quality.
 
@@ -85,11 +106,11 @@ def evaluate(output):
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "phi",
+                "model": model,
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=5
+            timeout=10
         )
 
         result = response.json().get("response", "").strip()
@@ -99,7 +120,7 @@ def evaluate(output):
         return 5.0
 
 
-# 🚀 Run Experiment
+# ---------------- Run Experiment ----------------
 @app.post("/experiments/run")
 def run_experiment(data: schemas.ExperimentRun, db: Session = Depends(get_db)):
 
@@ -128,10 +149,13 @@ def run_experiment(data: schemas.ExperimentRun, db: Session = Depends(get_db)):
     for version in versions:
         start_time = time.time()
 
-        output = fake_llm(version.content, data.input_text)
+        # 🔥 REAL LLM OUTPUT
+        output = run_llm(version.content, data.input_text, model="mistral")
 
         latency = time.time() - start_time
-        score = evaluate(output)
+
+        # 🔥 EVALUATION (different model)
+        score = evaluate(output, model="phi")
 
         result = models.Result(
             experiment_id=experiment.id,
@@ -161,7 +185,7 @@ def run_experiment(data: schemas.ExperimentRun, db: Session = Depends(get_db)):
     }
 
 
-# 🔥 Compare Versions
+# ---------------- Compare Versions ----------------
 @app.get("/prompts/{prompt_id}/compare")
 def compare_versions(prompt_id: int, db: Session = Depends(get_db)):
 
