@@ -1,14 +1,19 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+import time
+import requests
+
 from database import SessionLocal, engine, Base
 import models
-import requests
+import schemas
 
 app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
 
-# Dependency to get DB session
+
+# DB Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -16,76 +21,124 @@ def get_db():
     finally:
         db.close()
 
-# Home route
+
 @app.get("/")
 def home():
-    return {"message": "API is working"}
+    return {"message": "PromptLab API is running 🚀"}
 
-# 🔥 Create Prompt API
+
+# ✅ Create Prompt
 @app.post("/prompts")
-def create_prompt(name: str, db: Session = Depends(get_db)):
-    new_prompt = models.Prompt(name=name)
+def create_prompt(data: schemas.PromptCreate, db: Session = Depends(get_db)):
+    new_prompt = models.Prompt(name=data.name)
     db.add(new_prompt)
     db.commit()
     db.refresh(new_prompt)
-    
-    return {"id": new_prompt.id, "name": new_prompt.name}
 
+    return new_prompt
+
+
+# ✅ Create Version (FIXED VERSIONING)
 @app.post("/prompts/{prompt_id}/versions")
-def create_version(prompt_id: int, content: str, db: Session = Depends(get_db)):
-    
-    # find existing versions
-    existing_versions = db.query(models.PromptVersion).filter(
+def create_version(prompt_id: int, data: schemas.VersionCreate, db: Session = Depends(get_db)):
+
+    prompt = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    max_version = db.query(func.max(models.PromptVersion.version_number)).filter(
         models.PromptVersion.prompt_id == prompt_id
-    ).all()
-    
-    version_number = len(existing_versions) + 1
+    ).scalar()
+
+    version_number = (max_version or 0) + 1
 
     new_version = models.PromptVersion(
         prompt_id=prompt_id,
         version_number=version_number,
-        content=content
+        content=data.content
     )
 
     db.add(new_version)
     db.commit()
     db.refresh(new_version)
 
-    return {
-        "version_id": new_version.id,
-        "version_number": new_version.version_number,
-        "content": new_version.content
-    }
+    return new_version
 
+
+# 🔥 Fake LLM (replace later)
 def fake_llm(prompt, user_input):
-    return f"[Prompt]: {prompt} \n[Answer]: Response to '{user_input}'"
+    return f"[Prompt]: {prompt}\n[Answer]: Response to '{user_input}'"
 
+
+# 🔥 Evaluation (FIXED)
+def evaluate(output):
+    prompt = f"""
+    Rate this response from 1 to 10 based on clarity, usefulness, and quality.
+
+    Response:
+    {output}
+
+    Only return a number.
+    """
+
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "phi",
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=5
+        )
+
+        result = response.json().get("response", "").strip()
+        return float(result)
+
+    except Exception:
+        return 5.0
+
+
+# 🚀 Run Experiment
 @app.post("/experiments/run")
-def run_experiment(prompt_id: int, input_text: str, db: Session = Depends(get_db)):
-    
+def run_experiment(data: schemas.ExperimentRun, db: Session = Depends(get_db)):
+
+    prompt = db.query(models.Prompt).filter(models.Prompt.id == data.prompt_id).first()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
     experiment = models.Experiment(
-        prompt_id=prompt_id,
-        input_text=input_text
+        prompt_id=data.prompt_id,
+        input_text=data.input_text
     )
+
     db.add(experiment)
     db.commit()
     db.refresh(experiment)
 
     versions = db.query(models.PromptVersion).filter(
-        models.PromptVersion.prompt_id == prompt_id
+        models.PromptVersion.prompt_id == data.prompt_id
     ).all()
+
+    if not versions:
+        raise HTTPException(status_code=400, detail="No versions found")
 
     results = []
 
     for version in versions:
-        output = fake_llm(version.content, input_text)
+        start_time = time.time()
+
+        output = fake_llm(version.content, data.input_text)
+
+        latency = time.time() - start_time
         score = evaluate(output)
 
         result = models.Result(
             experiment_id=experiment.id,
             version_id=version.id,
             output=output,
-            score=score
+            score=score,
+            latency=latency
         )
 
         db.add(result)
@@ -93,7 +146,8 @@ def run_experiment(prompt_id: int, input_text: str, db: Session = Depends(get_db
         results.append({
             "version": version.version_number,
             "output": output,
-            "score": score
+            "score": score,
+            "latency": latency
         })
 
     db.commit()
@@ -106,28 +160,26 @@ def run_experiment(prompt_id: int, input_text: str, db: Session = Depends(get_db
         "best_version": best_result
     }
 
-def evaluate(output):
-    prompt = f"""
-    Rate this response from 1 to 10 based on clarity, usefulness, and quality.
 
-    Response:
-    {output}
+# 🔥 Compare Versions
+@app.get("/prompts/{prompt_id}/compare")
+def compare_versions(prompt_id: int, db: Session = Depends(get_db)):
 
-    Only return a number.
-    """
+    versions = db.query(models.PromptVersion).filter(
+        models.PromptVersion.prompt_id == prompt_id
+    ).all()
 
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "phi",
-            "prompt": prompt,
-            "stream": False
-        }
-    )
+    response = []
 
-    result = response.json()["response"].strip()
+    for v in versions:
+        avg_score = db.query(func.avg(models.Result.score)).filter(
+            models.Result.version_id == v.id
+        ).scalar()
 
-    try:
-        return float(result)
-    except:
-        return 5.0
+        response.append({
+            "version": v.version_number,
+            "content": v.content,
+            "avg_score": avg_score or 0
+        })
+
+    return response
