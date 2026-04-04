@@ -3,876 +3,467 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PromptLab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --bg: #0d0f14;
-    --surface: #161920;
-    --surface2: #1e222c;
-    --border: rgba(255,255,255,0.08);
-    --border2: rgba(255,255,255,0.14);
-    --accent: #7ee8a2;
-    --accent2: #38bdf8;
-    --accent3: #f472b6;
-    --text: #e8eaf0;
-    --muted: #6b7280;
-    --danger: #f87171;
-    --warn: #fbbf24;
-    --font-sans: 'Sora', sans-serif;
-    --font-mono: 'IBM Plex Mono', monospace;
+    --bg: #0d0f14; --surface: #161920; --surface2: #1e222c;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --accent: #7ee8a2; --accent2: #38bdf8; --accent3: #f472b6;
+    --text: #e8eaf0; --muted: #6b7280; --danger: #f87171; --warn: #fbbf24;
+    --font-sans: 'Sora', sans-serif; --font-mono: 'IBM Plex Mono', monospace;
   }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 14px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Header */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-    font-size: 16px;
-    letter-spacing: -0.3px;
-  }
-  .logo-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 12px var(--accent);
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%,100% { opacity:1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.85); }
-  }
-  .nav-tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--bg);
-    border-radius: 8px;
-    padding: 4px;
-  }
-  .nav-tab {
-    padding: 6px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--muted);
-    transition: all 0.15s;
-    border: none;
-    background: none;
-    font-family: var(--font-sans);
-  }
-  .nav-tab.active {
-    background: var(--surface2);
-    color: var(--text);
-    border: 1px solid var(--border2);
-  }
-  .nav-tab:hover:not(.active) { color: var(--text); }
-
-  .status-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--accent);
-    font-family: var(--font-mono);
-    background: rgba(126,232,162,0.08);
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 1px solid rgba(126,232,162,0.2);
-  }
-
-  /* Layout */
-  .main {
-    display: flex;
-    flex: 1;
-    gap: 0;
-  }
-  .sidebar {
-    width: 260px;
-    flex-shrink: 0;
-    border-right: 1px solid var(--border);
-    padding: 20px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: var(--surface);
-    overflow-y: auto;
-    max-height: calc(100vh - 56px);
-  }
-  .sidebar-label {
-    font-size: 10px;
-    letter-spacing: 1.2px;
-    color: var(--muted);
-    text-transform: uppercase;
-    padding: 4px 8px 8px;
-    font-family: var(--font-mono);
-  }
-  .prompt-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 12px;
-    border-radius: 7px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.12s;
-  }
-  .prompt-item:hover { background: var(--surface2); border-color: var(--border); }
-  .prompt-item.active { background: var(--surface2); border-color: var(--border2); }
-  .prompt-item-name { font-weight: 500; font-size: 13px; }
-  .prompt-item-meta { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
-  .version-badge {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    padding: 2px 7px;
-    border-radius: 10px;
-    background: rgba(56,189,248,0.12);
-    color: var(--accent2);
-    border: 1px solid rgba(56,189,248,0.2);
-  }
-  .add-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 12px;
-    border-radius: 7px;
-    border: 1px dashed var(--border2);
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 13px;
-    background: none;
-    width: 100%;
-    font-family: var(--font-sans);
-    transition: all 0.12s;
-    margin-top: 4px;
-  }
-  .add-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(126,232,162,0.04); }
-
-  /* Content */
-  .content {
-    flex: 1;
-    padding: 28px 32px;
-    overflow-y: auto;
-    max-height: calc(100vh - 56px);
-  }
-
-  /* Panels */
-  .page { display: none; }
-  .page.active { display: block; }
-
-  /* Cards */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-  }
-  .card-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 16px;
-    font-family: var(--font-mono);
-  }
-
-  /* Form elements */
-  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; font-family: var(--font-mono); }
-  input[type="text"], textarea, select {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border2);
-    border-radius: 7px;
-    padding: 10px 13px;
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 13px;
-    outline: none;
-    transition: border-color 0.15s;
-    margin-bottom: 14px;
-  }
-  input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
-  textarea { min-height: 100px; resize: vertical; line-height: 1.6; }
-  select option { background: var(--surface2); }
-
-  .btn {
-    padding: 9px 20px;
-    border-radius: 7px;
-    border: none;
-    cursor: pointer;
-    font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.15s;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-  }
-  .btn-primary {
-    background: var(--accent);
-    color: #0a1a10;
-  }
-  .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
-  .btn-secondary {
-    background: var(--surface2);
-    color: var(--text);
-    border: 1px solid var(--border2);
-  }
-  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  /* Grid */
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-
-  /* Metric cards */
-  .metric {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 16px;
-  }
-  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.5px; }
-  .metric-value { font-size: 26px; font-weight: 600; line-height: 1; }
-  .metric-value.green { color: var(--accent); }
-  .metric-value.blue { color: var(--accent2); }
-  .metric-value.pink { color: var(--accent3); }
-
-  /* Result rows */
-  .result-row {
-    display: grid;
-    grid-template-columns: 80px 1fr 100px 100px;
-    gap: 12px;
-    align-items: start;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .result-row:last-child { border-bottom: none; }
-  .version-tag {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px; height: 36px;
-    border-radius: 8px;
-    background: rgba(126,232,162,0.1);
-    border: 1px solid rgba(126,232,162,0.25);
-    color: var(--accent);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 500;
-  }
-  .output-text {
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--text);
-    font-family: var(--font-mono);
-    background: var(--bg);
-    border-radius: 6px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-  }
-  .score-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .score-num {
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-size: 14px;
-  }
-  .bar-track {
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .bar-fill {
-    height: 100%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent2), var(--accent));
-    transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
-  }
-  .latency-badge {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--muted);
-    background: var(--bg);
-    padding: 4px 8px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    text-align: center;
-  }
-
-  /* Version list */
-  .version-row {
-    display: grid;
-    grid-template-columns: 40px 1fr 100px 80px;
-    gap: 12px;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .version-row:last-child { border-bottom: none; }
-
-  /* Loading spinner */
-  .spinner {
-    display: inline-block;
-    width: 16px; height: 16px;
-    border: 2px solid rgba(126,232,162,0.3);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    vertical-align: middle;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: var(--surface2);
-    border: 1px solid var(--border2);
-    border-radius: 9px;
-    padding: 12px 18px;
-    font-size: 13px;
-    display: none;
-    align-items: center;
-    gap: 10px;
-    z-index: 999;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    animation: slideUp 0.2s ease;
-  }
-  @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  #toast.show { display: flex; }
-  .toast-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-
-  /* Empty state */
-  .empty {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--muted);
-  }
-  .empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
-  .empty-title { font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
-  .empty-sub { font-size: 13px; }
-
-  /* Tabs inside content */
-  .inner-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 22px;
-  }
-  .inner-tab {
-    padding: 8px 18px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--muted);
-    border: none;
-    background: none;
-    font-family: var(--font-sans);
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s;
-    margin-bottom: -1px;
-  }
-  .inner-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .inner-tab:hover:not(.active) { color: var(--text); }
-
-  .section { display: none; }
-  .section.active { display: block; }
-
-  /* Row header */
-  .row-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-  }
-  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
-  h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
-
-  .best-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-family: var(--font-mono);
-    padding: 3px 9px;
-    border-radius: 10px;
-    background: rgba(126,232,162,0.12);
-    color: var(--accent);
-    border: 1px solid rgba(126,232,162,0.3);
-  }
-
-  /* Compare bar chart */
-  .compare-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .compare-bar:last-child { border-bottom: none; }
-  .compare-label { font-family: var(--font-mono); font-size: 12px; width: 60px; color: var(--muted); }
-  .compare-track { flex: 1; height: 20px; background: var(--bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
-  .compare-fill { height: 100%; background: linear-gradient(90deg, rgba(56,189,248,0.4), rgba(126,232,162,0.7)); border-radius: 3px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); display: flex; align-items: center; padding-left: 8px; }
-  .compare-score { font-family: var(--font-mono); font-size: 12px; width: 40px; text-align: right; }
-
-  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font-sans); font-size:14px; min-height:100vh; display:flex; flex-direction:column; }
+  .header { display:flex; align-items:center; justify-content:space-between; padding:14px 28px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:10px; font-weight:600; font-size:16px; letter-spacing:-.3px; }
+  .logo-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent); animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)} }
+  .nav-tabs { display:flex; gap:4px; background:var(--bg); border-radius:8px; padding:4px; }
+  .nav-tab { padding:6px 16px; border-radius:6px; cursor:pointer; font-size:13px; color:var(--muted); transition:all .15s; border:none; background:none; font-family:var(--font-sans); }
+  .nav-tab.active { background:var(--surface2); color:var(--text); border:1px solid var(--border2); }
+  .nav-tab:hover:not(.active) { color:var(--text); }
+  .status-pill { display:flex; align-items:center; gap:6px; font-size:12px; font-family:var(--font-mono); padding:5px 12px; border-radius:20px; border:1px solid; cursor:pointer; transition:all .2s; }
+  .status-pill.online  { color:var(--accent);  background:rgba(126,232,162,.08); border-color:rgba(126,232,162,.2); }
+  .status-pill.offline { color:var(--danger);  background:rgba(248,113,113,.08); border-color:rgba(248,113,113,.2); }
+  .status-pill.checking{ color:var(--warn);    background:rgba(251,191,36,.08);  border-color:rgba(251,191,36,.2); }
+  .status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
+  .main { display:flex; flex:1; }
+  .sidebar { width:260px; flex-shrink:0; border-right:1px solid var(--border); padding:20px 16px; display:flex; flex-direction:column; gap:6px; background:var(--surface); overflow-y:auto; max-height:calc(100vh - 53px); }
+  .sidebar-label { font-size:10px; letter-spacing:1.2px; color:var(--muted); text-transform:uppercase; padding:4px 8px 8px; font-family:var(--font-mono); }
+  .prompt-item { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:7px; cursor:pointer; border:1px solid transparent; transition:all .12s; }
+  .prompt-item:hover { background:var(--surface2); border-color:var(--border); }
+  .prompt-item.active { background:var(--surface2); border-color:var(--border2); }
+  .prompt-item-name { font-weight:500; font-size:13px; }
+  .prompt-item-meta { font-size:11px; color:var(--muted); font-family:var(--font-mono); }
+  .version-badge { font-size:10px; font-family:var(--font-mono); padding:2px 7px; border-radius:10px; background:rgba(56,189,248,.12); color:var(--accent2); border:1px solid rgba(56,189,248,.2); }
+  .add-btn { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:7px; border:1px dashed var(--border2); cursor:pointer; color:var(--muted); font-size:13px; background:none; width:100%; font-family:var(--font-sans); transition:all .12s; margin-top:4px; }
+  .add-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(126,232,162,.04); }
+  .content { flex:1; padding:28px 32px; overflow-y:auto; max-height:calc(100vh - 53px); }
+  .page { display:none; } .page.active { display:block; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px 24px; margin-bottom:20px; }
+  .card-title { font-size:12px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin-bottom:16px; font-family:var(--font-mono); display:flex; align-items:center; justify-content:space-between; }
+  label { font-size:12px; color:var(--muted); display:block; margin-bottom:5px; font-family:var(--font-mono); }
+  input[type="text"], textarea, select { width:100%; background:var(--bg); border:1px solid var(--border2); border-radius:7px; padding:10px 13px; color:var(--text); font-family:var(--font-sans); font-size:13px; outline:none; transition:border-color .15s; margin-bottom:14px; }
+  input[type="text"]:focus, textarea:focus, select:focus { border-color:var(--accent); }
+  textarea { min-height:100px; resize:vertical; line-height:1.6; }
+  select option { background:var(--surface2); }
+  .btn { padding:9px 20px; border-radius:7px; border:none; cursor:pointer; font-family:var(--font-sans); font-size:13px; font-weight:500; transition:all .15s; display:inline-flex; align-items:center; gap:7px; }
+  .btn-primary { background:var(--accent); color:#0a1a10; }
+  .btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+  .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border2); }
+  .btn-secondary:hover { border-color:var(--accent2); color:var(--accent2); }
+  .btn:active { transform:scale(.97); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; transform:none !important; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .metric { background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:16px; }
+  .metric-label { font-size:11px; color:var(--muted); margin-bottom:6px; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; }
+  .metric-value { font-size:26px; font-weight:600; line-height:1; }
+  .metric-value.green{color:var(--accent)} .metric-value.blue{color:var(--accent2)} .metric-value.pink{color:var(--accent3)} .metric-value.warn{color:var(--warn)}
+  .score-bar { display:flex; flex-direction:column; gap:4px; }
+  .score-num { font-family:var(--font-mono); font-weight:500; font-size:14px; }
+  .bar-track { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--accent2),var(--accent)); transition:width .6s cubic-bezier(.16,1,.3,1); }
+  .score-breakdown { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+  .score-dim { background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:8px 10px; text-align:center; }
+  .score-dim-label { font-size:10px; color:var(--muted); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+  .score-dim-val { font-size:17px; font-weight:600; font-family:var(--font-mono); }
+  .result-card { background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:16px; margin-bottom:12px; }
+  .result-card.best-card { border-color:rgba(126,232,162,.35); background:rgba(126,232,162,.04); }
+  .result-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .version-tag { display:inline-flex; align-items:center; padding:4px 10px; border-radius:6px; background:rgba(126,232,162,.1); border:1px solid rgba(126,232,162,.25); color:var(--accent); font-family:var(--font-mono); font-size:12px; font-weight:500; gap:5px; }
+  .output-text { font-size:12px; line-height:1.6; color:var(--muted); font-family:var(--font-mono); background:var(--bg); border-radius:6px; padding:10px 12px; border:1px solid var(--border); max-height:120px; overflow-y:auto; white-space:pre-wrap; margin-bottom:10px; }
+  .latency-badge { font-family:var(--font-mono); font-size:11px; color:var(--muted); background:var(--bg); padding:3px 8px; border-radius:5px; border:1px solid var(--border); }
+  .error-badge { font-size:11px; font-family:var(--font-mono); padding:3px 9px; border-radius:10px; background:rgba(248,113,113,.12); color:var(--danger); border:1px solid rgba(248,113,113,.3); }
+  .inner-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:22px; }
+  .inner-tab { padding:8px 18px; cursor:pointer; font-size:13px; color:var(--muted); border:none; background:none; font-family:var(--font-sans); border-bottom:2px solid transparent; transition:all .15s; margin-bottom:-1px; }
+  .inner-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .inner-tab:hover:not(.active) { color:var(--text); }
+  .section { display:none; } .section.active { display:block; }
+  .version-row { display:grid; grid-template-columns:50px 1fr 130px 90px; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
+  .version-row:last-child { border-bottom:none; }
+  .history-row { display:grid; grid-template-columns:60px 1fr 90px 80px 80px; gap:10px; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; transition:background .1s; }
+  .history-row:hover { background:var(--surface2); border-radius:6px; padding-left:8px; }
+  .history-row:last-child { border-bottom:none; }
+  .history-header { font-size:10px; color:var(--muted); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; padding:6px 0 10px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:60px 1fr 90px 80px 80px; gap:10px; }
+  .compare-bar { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .compare-bar:last-child { border-bottom:none; }
+  .compare-label { font-family:var(--font-mono); font-size:12px; width:55px; color:var(--muted); }
+  .compare-track { flex:1; height:18px; background:var(--bg); border-radius:4px; overflow:hidden; border:1px solid var(--border); }
+  .compare-fill { height:100%; background:linear-gradient(90deg,rgba(56,189,248,.4),rgba(126,232,162,.7)); border-radius:3px; display:flex; align-items:center; padding-left:8px; transition:width .8s cubic-bezier(.16,1,.3,1); }
+  .compare-score { font-family:var(--font-mono); font-size:12px; width:50px; text-align:right; color:var(--muted); }
+  .spinner { display:inline-block; width:15px; height:15px; border:2px solid rgba(126,232,162,.3); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  #toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border2); border-radius:9px; padding:12px 18px; font-size:13px; display:none; align-items:center; gap:10px; z-index:9999; max-width:360px; animation:slideUp .2s ease; }
+  @keyframes slideUp { from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1} }
+  #toast.show { display:flex; }
+  .toast-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .offline-card { background:rgba(248,113,113,.06); border:1px solid rgba(248,113,113,.2); border-radius:9px; padding:16px 20px; margin-bottom:20px; display:none; }
+  .offline-card.show { display:flex; gap:14px; align-items:flex-start; }
+  .offline-title { font-weight:600; color:var(--danger); margin-bottom:6px; }
+  .offline-body { font-size:12px; color:var(--muted); line-height:1.9; font-family:var(--font-mono); }
+  .offline-body code { color:var(--accent2); }
+  .chart-wrap { position:relative; height:220px; }
+  .empty { text-align:center; padding:50px 20px; color:var(--muted); }
+  .empty-icon { font-size:32px; margin-bottom:10px; opacity:.4; }
+  .empty-title { font-size:15px; font-weight:500; color:var(--text); margin-bottom:5px; }
+  .empty-sub { font-size:13px; }
+  .row-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:22px; gap:12px; }
+  .row-header-actions { display:flex; gap:8px; flex-shrink:0; }
+  h1 { font-size:22px; font-weight:600; letter-spacing:-.5px; }
+  h2 { font-size:17px; font-weight:600; letter-spacing:-.3px; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="logo">
-    <div class="logo-dot"></div>
-    PromptLab
-  </div>
+  <div class="logo"><div class="logo-dot"></div>PromptLab</div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showPage('prompts')">Prompts</button>
     <button class="nav-tab" onclick="showPage('experiments')">Experiments</button>
+    <button class="nav-tab" onclick="showPage('history')">History</button>
   </div>
-  <div class="status-pill">
-    <div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;"></div>
-    API online
+  <div class="status-pill checking" id="status-pill" onclick="checkOllama()">
+    <div class="status-dot"></div>
+    <span id="status-text">Checking...</span>
   </div>
 </div>
 
 <div class="main">
-  <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-label">Prompts</div>
     <div id="sidebar-prompts"></div>
-    <button class="add-btn" onclick="showNewPromptForm()">
-      <span style="font-size:16px;line-height:1;">+</span> New prompt
-    </button>
+    <button class="add-btn" onclick="showNewPromptForm()"><span style="font-size:16px;line-height:1">+</span> New prompt</button>
   </div>
 
-  <!-- Content -->
   <div class="content">
 
-    <!-- Dashboard -->
+    <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div class="row-header">
-        <div>
-          <h1>Dashboard</h1>
-          <p style="color:var(--muted);margin-top:4px;font-size:13px;">Overview of your prompt experiments</p>
-        </div>
-        <button class="btn btn-primary" onclick="showPage('experiments')">
-          Run experiment
-        </button>
+        <div><h1>Dashboard</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">Prompt experimentation overview</p></div>
+        <button class="btn btn-primary" onclick="showPage('experiments')">Run experiment</button>
       </div>
-
-      <div class="grid3" style="margin-bottom:20px;">
-        <div class="metric">
-          <div class="metric-label">Total prompts</div>
-          <div class="metric-value blue" id="stat-prompts">—</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Total versions</div>
-          <div class="metric-value green" id="stat-versions">—</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Experiments run</div>
-          <div class="metric-value pink" id="stat-experiments">—</div>
-        </div>
+      <div class="offline-card" id="offline-banner">
+        <div style="font-size:20px;">&#9888;</div>
+        <div><div class="offline-title">Ollama is offline</div><div class="offline-body">Start: <code>ollama serve</code><br>Pull models: <code>ollama pull mistral &amp;&amp; ollama pull phi</code></div></div>
       </div>
-
-      <div class="card">
-        <div class="card-title">Recent prompts</div>
-        <div id="recent-prompts-list"></div>
+      <div class="grid4" style="margin-bottom:20px;">
+        <div class="metric"><div class="metric-label">Prompts</div><div class="metric-value blue" id="stat-prompts">--</div></div>
+        <div class="metric"><div class="metric-label">Versions</div><div class="metric-value green" id="stat-versions">--</div></div>
+        <div class="metric"><div class="metric-label">Experiments</div><div class="metric-value pink" id="stat-experiments">--</div></div>
+        <div class="metric"><div class="metric-label">Avg score</div><div class="metric-value warn" id="stat-avg-score">--</div></div>
       </div>
+      <div class="grid2">
+        <div class="card"><div class="card-title">Score trend (last 10 runs)</div><div class="chart-wrap"><canvas id="chart-score-trend"></canvas></div></div>
+        <div class="card"><div class="card-title">Latency trend (last 10 runs)</div><div class="chart-wrap"><canvas id="chart-latency-trend"></canvas></div></div>
+      </div>
+      <div class="card"><div class="card-title">Recent prompts</div><div id="recent-prompts-list"></div></div>
     </div>
 
-    <!-- Prompts page -->
+    <!-- PROMPTS -->
     <div class="page" id="page-prompts">
       <div class="row-header">
         <h1 id="prompt-detail-title">Select a prompt</h1>
-        <div style="display:flex;gap:8px;" id="prompt-actions" style="display:none;">
+        <div class="row-header-actions" id="prompt-actions" style="display:none">
           <button class="btn btn-secondary" onclick="switchSection('versions')">Versions</button>
           <button class="btn btn-secondary" onclick="switchSection('compare')">Compare</button>
           <button class="btn btn-primary" onclick="switchSection('add-version')">+ Add version</button>
         </div>
       </div>
-
-      <div id="no-prompt-selected">
-        <div class="empty">
-          <div class="empty-icon">&#9670;</div>
-          <div class="empty-title">No prompt selected</div>
-          <div class="empty-sub">Pick a prompt from the sidebar or create a new one</div>
-        </div>
-      </div>
-
-      <div id="prompt-detail" style="display:none;">
+      <div id="no-prompt-selected"><div class="empty"><div class="empty-icon">&#9670;</div><div class="empty-title">No prompt selected</div><div class="empty-sub">Pick from sidebar or create a new one</div></div></div>
+      <div id="prompt-detail" style="display:none">
         <div class="inner-tabs">
           <button class="inner-tab active" onclick="switchSection('versions')">Versions</button>
           <button class="inner-tab" onclick="switchSection('compare')">Compare</button>
           <button class="inner-tab" onclick="switchSection('add-version')">+ Add version</button>
         </div>
-
-        <!-- Versions section -->
-        <div class="section active" id="section-versions">
-          <div id="versions-list"></div>
-        </div>
-
-        <!-- Compare section -->
+        <div class="section active" id="section-versions"><div id="versions-list"></div></div>
         <div class="section" id="section-compare">
-          <div class="card">
-            <div class="card-title">Version comparison — avg score</div>
-            <div id="compare-chart"></div>
-          </div>
+          <div class="card"><div class="card-title">Composite score per version</div><div class="chart-wrap" style="height:180px"><canvas id="chart-compare-score"></canvas></div></div>
+          <div class="card"><div class="card-title">Clarity / Relevance / Grammar breakdown</div><div class="chart-wrap" style="height:200px"><canvas id="chart-compare-dims"></canvas></div></div>
+          <div class="card"><div class="card-title">Average latency per version</div><div id="compare-latency-bars"></div></div>
         </div>
-
-        <!-- Add version section -->
         <div class="section" id="section-add-version">
-          <div class="card">
-            <div class="card-title">New version</div>
-            <label>Prompt content</label>
-            <textarea id="new-version-content" placeholder="Write your prompt here. Be specific about tone, format, and constraints..."></textarea>
-            <button class="btn btn-primary" onclick="addVersion()">
-              Save version
-            </button>
-          </div>
+          <div class="card"><div class="card-title">New version</div><label>Prompt content</label><textarea id="new-version-content" placeholder="Write your prompt here..."></textarea><button class="btn btn-primary" onclick="addVersion()">Save version</button></div>
         </div>
       </div>
+      <div id="new-prompt-form" style="display:none">
+        <div class="card"><div class="card-title">Create prompt</div><label>Prompt name</label><input type="text" id="new-prompt-name" placeholder="e.g. Customer support agent"/><button class="btn btn-primary" onclick="createPrompt()">Create prompt</button></div>
+      </div>
+    </div>
 
-      <!-- New Prompt Form -->
-      <div id="new-prompt-form" style="display:none;">
-        <div class="card">
-          <div class="card-title">Create prompt</div>
-          <label>Prompt name</label>
-          <input type="text" id="new-prompt-name" placeholder="e.g. Customer support agent v1"/>
-          <button class="btn btn-primary" onclick="createPrompt()">Create prompt</button>
+    <!-- EXPERIMENTS -->
+    <div class="page" id="page-experiments">
+      <div class="row-header"><div><h1>Run experiment</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">All versions scored on clarity, relevance and grammar</p></div></div>
+      <div class="grid2" style="align-items:start">
+        <div>
+          <div class="offline-card" id="exp-offline-banner">
+            <div style="font-size:20px">&#9888;</div>
+            <div><div class="offline-title">Ollama is offline</div><div class="offline-body"><code>ollama serve</code><br><code>ollama pull mistral &amp;&amp; ollama pull phi</code></div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Configuration</div>
+            <label>Prompt</label>
+            <select id="exp-prompt-select"><option value="">Select a prompt...</option></select>
+            <label>User input</label>
+            <textarea id="exp-input" placeholder="Test input sent to every version..." style="min-height:130px"></textarea>
+            <button class="btn btn-primary" id="run-btn" onclick="runExperiment()" style="width:100%;justify-content:center">Run experiment</button>
+          </div>
+          <div class="card" style="margin-top:0">
+            <div class="card-title">Scoring weights</div>
+            <div style="font-size:12px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
+              <span style="color:var(--accent2)">Clarity</span> -- clear and structured -- 30%<br>
+              <span style="color:var(--accent3)">Relevance</span> -- answers the input -- 50%<br>
+              <span style="color:var(--accent)">Grammar</span> -- fluency and quality -- 20%<br>
+              <span style="color:var(--warn)">Composite</span> -- weighted average
+            </div>
+          </div>
+        </div>
+        <div>
+          <div id="exp-results-card" style="display:none"><div id="exp-results"></div><div class="card" style="margin-top:0"><div class="card-title">Score comparison chart</div><div class="chart-wrap" style="height:200px"><canvas id="chart-exp-scores"></canvas></div></div></div>
+          <div id="exp-empty" class="empty" style="padding-top:60px"><div class="empty-icon">&#9656;</div><div class="empty-title">No results yet</div><div class="empty-sub">Configure and run an experiment</div></div>
         </div>
       </div>
     </div>
 
-    <!-- Experiments page -->
-    <div class="page" id="page-experiments">
+    <!-- HISTORY -->
+    <div class="page" id="page-history">
       <div class="row-header">
-        <div>
-          <h1>Run experiment</h1>
-          <p style="color:var(--muted);margin-top:4px;font-size:13px;">Compare all versions of a prompt on a single input</p>
+        <div><h1>Experiment history</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">Click any row to inspect results</p></div>
+        <div class="row-header-actions">
+          <select id="history-filter" onchange="loadHistory()" style="margin-bottom:0;width:auto;padding:8px 12px"><option value="">All prompts</option></select>
+          <button class="btn btn-secondary" onclick="loadHistory()">Refresh</button>
         </div>
       </div>
-
-      <div class="grid2" style="align-items:start;">
-        <div>
-          <div class="card">
-            <div class="card-title">Configuration</div>
-            <label>Prompt</label>
-            <select id="exp-prompt-select">
-              <option value="">Select a prompt...</option>
-            </select>
-            <label>User input</label>
-            <textarea id="exp-input" placeholder="The test input to send to each version..." style="min-height:120px;"></textarea>
-            <button class="btn btn-primary" id="run-btn" onclick="runExperiment()" style="width:100%;justify-content:center;">
-              Run experiment
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <div class="card" id="exp-results-card" style="display:none;">
-            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
-              Results
-              <span id="best-badge" class="best-badge" style="display:none;">&#9733; Best: v<span id="best-version-num"></span></span>
-            </div>
-            <div id="exp-results"></div>
-          </div>
-          <div id="exp-empty" class="empty" style="padding-top:40px;">
-            <div class="empty-icon">&#9656;</div>
-            <div class="empty-title">No results yet</div>
-            <div class="empty-sub">Configure and run an experiment to see results</div>
-          </div>
-        </div>
+      <div class="card" id="history-card">
+        <div class="history-header"><span>ID</span><span>Input</span><span>Prompt</span><span>Results</span><span>Date</span></div>
+        <div id="history-list"></div>
+      </div>
+      <div id="exp-detail" style="display:none">
+        <div class="row-header" style="margin-top:0"><h2 id="exp-detail-title">Experiment</h2><button class="btn btn-secondary" onclick="closeExpDetail()">Back</button></div>
+        <div id="exp-detail-content"></div>
       </div>
     </div>
 
   </div>
 </div>
 
-<!-- Toast -->
-<div id="toast">
-  <div class="toast-dot"></div>
-  <span id="toast-msg"></span>
-</div>
+<div id="toast"><div class="toast-dot" id="toast-dot"></div><span id="toast-msg"></span></div>
 
 <script>
 const API = 'http://localhost:8000';
-let prompts = [];
-let selectedPromptId = null;
-let selectedVersions = [];
-let activePage = 'dashboard';
-let activeSection = 'versions';
+let prompts=[], selectedPromptId=null, selectedVersions=[], ollamaOnline=false, charts={};
 
-function toast(msg, isError=false) {
-  const t = document.getElementById('toast');
-  const d = t.querySelector('.toast-dot');
-  d.style.background = isError ? 'var(--danger)' : 'var(--accent)';
-  document.getElementById('toast-msg').textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+function toast(msg,type='success'){
+  const c={success:'var(--accent)',error:'var(--danger)',warn:'var(--warn)'};
+  document.getElementById('toast-dot').style.background=c[type]||c.success;
+  document.getElementById('toast-msg').textContent=msg;
+  const t=document.getElementById('toast');t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function sc(s){return s>=7?'var(--accent)':s>=4?'var(--warn)':'var(--danger)';}
+function fmtDate(d){if(!d)return'--';return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
+function killChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
+
+function cOpts({max,yLabel,grouped}={}){
+  return{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:'rgba(255,255,255,.4)',font:{family:"'IBM Plex Mono'",size:11},boxWidth:10,padding:10}},
+      tooltip:{backgroundColor:'#1e222c',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#e8eaf0',bodyColor:'rgba(255,255,255,.55)',titleFont:{family:"'IBM Plex Mono'",size:11},bodyFont:{family:"'IBM Plex Mono'",size:11}}},
+    scales:{
+      x:{ticks:{color:'rgba(255,255,255,.3)',font:{family:"'IBM Plex Mono'",size:10}},grid:{color:'rgba(255,255,255,.05)'}},
+      y:{min:0,...(max?{max}:{}),ticks:{color:'rgba(255,255,255,.3)',font:{family:"'IBM Plex Mono'",size:10}},grid:{color:'rgba(255,255,255,.05)'},title:yLabel?{display:true,text:yLabel,color:'rgba(255,255,255,.25)',font:{size:10,family:"'IBM Plex Mono'"}}:undefined}},
+    ...(grouped?{barPercentage:.75,categoryPercentage:.8}:{})};
 }
 
-function showPage(p) {
-  activePage = p;
-  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-  document.getElementById('page-' + p).classList.add('active');
-  const tabs = document.querySelectorAll('.nav-tab');
-  const map = { dashboard: 0, prompts: 1, experiments: 2 };
-  tabs[map[p]].classList.add('active');
-  if (p === 'prompts' && selectedPromptId) loadPromptDetail(selectedPromptId);
-  if (p === 'experiments') populateExpSelect();
-  if (p === 'dashboard') loadDashboard();
+async function checkOllama(){
+  const pill=document.getElementById('status-pill'),txt=document.getElementById('status-text');
+  pill.className='status-pill checking';txt.textContent='Checking...';
+  try{const r=await fetch(`${API}/health`,{signal:AbortSignal.timeout(4000)});const d=await r.json();ollamaOnline=d.ollama==='ok';}
+  catch{ollamaOnline=false;}
+  pill.className=`status-pill ${ollamaOnline?'online':'offline'}`;
+  txt.textContent=ollamaOnline?'Ollama online':'Ollama offline';
+  ['offline-banner','exp-offline-banner'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle('show',!ollamaOnline);});
 }
 
-function switchSection(s) {
-  activeSection = s;
-  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.inner-tab').forEach(el => el.classList.remove('active'));
-  document.getElementById('section-' + s).classList.add('active');
-  const tabs = document.querySelectorAll('.inner-tab');
-  const map = { versions: 0, compare: 1, 'add-version': 2 };
-  tabs[map[s]].classList.add('active');
-  if (s === 'compare') loadCompare();
+function showPage(p){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  const m={dashboard:0,prompts:1,experiments:2,history:3};
+  document.querySelectorAll('.nav-tab')[m[p]].classList.add('active');
+  if(p==='prompts'&&selectedPromptId)loadPromptDetail(selectedPromptId);
+  if(p==='experiments')populateExpSelect();
+  if(p==='dashboard')loadDashboard();
+  if(p==='history')loadHistory();
 }
 
-async function loadPrompts() {
-  try {
-    const r = await fetch(API + '/prompts');
-    if (!r.ok) return;
-    prompts = await r.json();
-    renderSidebar();
-    populateExpSelect();
-  } catch(e) { /* offline mode */ }
+function switchSection(s){
+  document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.inner-tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('section-'+s).classList.add('active');
+  const m={versions:0,compare:1,'add-version':2};
+  document.querySelectorAll('.inner-tab')[m[s]].classList.add('active');
+  if(s==='compare')loadCompare();
 }
 
-function renderSidebar() {
-  const el = document.getElementById('sidebar-prompts');
-  el.innerHTML = prompts.map(p => `
-    <div class="prompt-item${selectedPromptId===p.id?' active':''}" onclick="selectPrompt(${p.id},'${escHtml(p.name)}')">
-      <div>
-        <div class="prompt-item-name">${escHtml(p.name)}</div>
-        <div class="prompt-item-meta">#${p.id}</div>
-      </div>
-      <span class="version-badge">${p.version_count||'?'}v</span>
-    </div>
-  `).join('');
+async function loadPrompts(){
+  try{const r=await fetch(`${API}/prompts`);if(!r.ok)return;prompts=await r.json();renderSidebar();populateExpSelect();populateHistoryFilter();}catch{}
 }
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function selectPrompt(id, name) {
-  selectedPromptId = id;
-  showPage('prompts');
-  document.getElementById('no-prompt-selected').style.display = 'none';
-  document.getElementById('new-prompt-form').style.display = 'none';
-  document.getElementById('prompt-detail').style.display = 'block';
-  document.getElementById('prompt-detail-title').textContent = name;
-  document.getElementById('prompt-actions').style.display = 'flex';
-  renderSidebar();
-  loadPromptDetail(id);
+function renderSidebar(){
+  document.getElementById('sidebar-prompts').innerHTML=prompts.map(p=>`<div class="prompt-item${selectedPromptId===p.id?' active':''}" onclick="selectPrompt(${p.id},'${esc(p.name)}')" ><div><div class="prompt-item-name">${esc(p.name)}</div><div class="prompt-item-meta">#${p.id}</div></div><span class="version-badge">${p.version_count}v</span></div>`).join('');
 }
 
-async function loadPromptDetail(id) {
-  try {
-    const r = await fetch(`${API}/prompts/${id}/versions`);
-    if (!r.ok) return;
-    selectedVersions = await r.json();
-    renderVersionsList();
-  } catch(e) {}
+function selectPrompt(id,name){
+  selectedPromptId=id;showPage('prompts');
+  document.getElementById('no-prompt-selected').style.display='none';
+  document.getElementById('new-prompt-form').style.display='none';
+  document.getElementById('prompt-detail').style.display='block';
+  document.getElementById('prompt-detail-title').textContent=name;
+  document.getElementById('prompt-actions').style.display='flex';
+  renderSidebar();loadPromptDetail(id);
 }
 
-function renderVersionsList() {
-  const el = document.getElementById('versions-list');
-  if (!selectedVersions.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-title">No versions yet</div><div class="empty-sub">Add a version to get started</div></div>';
-    return;
-  }
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:40px 1fr 100px 80px;gap:12px;padding:8px 0;color:var(--muted);font-size:11px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">
-      <span>Ver</span><span>Content</span><span>Avg score</span><span>Actions</span>
-    </div>
-    ${selectedVersions.map(v => `
-    <div class="version-row">
-      <span class="version-tag">v${v.version_number}</span>
-      <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;">${escHtml(v.content)}</span>
-      <div class="score-bar">
-        <span class="score-num" style="font-size:13px;">${v.avg_score !== undefined ? v.avg_score.toFixed(1) : '—'}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${v.avg_score ? v.avg_score*10 : 0}%"></div></div>
-      </div>
-      <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">#${v.id}</span>
-    </div>`).join('')}
-  `;
+async function loadPromptDetail(id){
+  try{const r=await fetch(`${API}/prompts/${id}/versions`);if(!r.ok)return;selectedVersions=await r.json();renderVersionsList();}catch{}
 }
 
-async function loadCompare() {
-  if (!selectedPromptId) return;
-  const el = document.getElementById('compare-chart');
-  el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Loading...</div>';
-  try {
-    const r = await fetch(`${API}/prompts/${selectedPromptId}/compare`);
-    const data = await r.json();
-    const max = Math.max(...data.map(d => d.avg_score), 10);
-    el.innerHTML = data.map(d => `
-      <div class="compare-bar">
-        <div class="compare-label">v${d.version}</div>
-        <div class="compare-track">
-          <div class="compare-fill" style="width:${(d.avg_score/max)*100}%">
-            <span style="font-size:11px;color:rgba(255,255,255,0.8);font-family:var(--font-mono);">${d.avg_score.toFixed(1)}</span>
-          </div>
-        </div>
-        <div class="compare-score">${d.avg_score.toFixed(1)}</div>
-      </div>
-    `).join('');
-  } catch(e) { el.innerHTML = '<div style="color:var(--danger);font-size:13px;">Could not load comparison</div>'; }
+function renderVersionsList(){
+  const el=document.getElementById('versions-list');
+  if(!selectedVersions.length){el.innerHTML='<div class="empty"><div class="empty-title">No versions yet</div><div class="empty-sub">Add a version to get started</div></div>';return;}
+  el.innerHTML='<div style="display:grid;grid-template-columns:50px 1fr 130px 80px;gap:12px;padding:8px 0;color:var(--muted);font-size:10px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)"><span>Ver</span><span>Content</span><span>Avg score</span><span>ID</span></div>'
+  +selectedVersions.map(v=>`<div class="version-row"><span class="version-tag">v${v.version_number}</span><span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical">${esc(v.content)}</span><div class="score-bar"><span class="score-num" style="color:${sc(v.avg_score||0)}">${v.avg_score!=null?v.avg_score.toFixed(1):'--'}</span><div class="bar-track"><div class="bar-fill" style="width:${v.avg_score?v.avg_score*10:0}%"></div></div></div><span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">#${v.id}</span></div>`).join('');
 }
 
-function showNewPromptForm() {
-  showPage('prompts');
-  selectedPromptId = null;
-  document.getElementById('no-prompt-selected').style.display = 'none';
-  document.getElementById('prompt-detail').style.display = 'none';
-  document.getElementById('prompt-actions').style.display = 'none';
-  document.getElementById('new-prompt-form').style.display = 'block';
-  document.getElementById('prompt-detail-title').textContent = 'New prompt';
+async function loadCompare(){
+  if(!selectedPromptId)return;
+  try{
+    const r=await fetch(`${API}/prompts/${selectedPromptId}/compare`);const data=await r.json();
+    const labels=data.map(d=>`v${d.version}`);
+    killChart('cs');charts['cs']=new Chart(document.getElementById('chart-compare-score'),{type:'bar',data:{labels,datasets:[{label:'Composite',data:data.map(d=>d.avg_score),backgroundColor:'rgba(126,232,162,.35)',borderColor:'rgba(126,232,162,.8)',borderWidth:1,borderRadius:5}]},options:cOpts({max:10,yLabel:'Score'})});
+    killChart('cd');charts['cd']=new Chart(document.getElementById('chart-compare-dims'),{type:'bar',data:{labels,datasets:[{label:'Clarity',data:data.map(d=>d.avg_clarity),backgroundColor:'rgba(56,189,248,.5)',borderColor:'rgba(56,189,248,.9)',borderWidth:1,borderRadius:4},{label:'Relevance',data:data.map(d=>d.avg_relevance),backgroundColor:'rgba(244,114,182,.5)',borderColor:'rgba(244,114,182,.9)',borderWidth:1,borderRadius:4},{label:'Grammar',data:data.map(d=>d.avg_grammar),backgroundColor:'rgba(126,232,162,.5)',borderColor:'rgba(126,232,162,.9)',borderWidth:1,borderRadius:4}]},options:cOpts({max:10,yLabel:'Score',grouped:true})});
+    const ml=Math.max(...data.map(d=>d.avg_latency),1);
+    document.getElementById('compare-latency-bars').innerHTML=data.map(d=>`<div class="compare-bar"><div class="compare-label">v${d.version}</div><div class="compare-track"><div class="compare-fill" style="width:${(d.avg_latency/ml)*100}%"><span style="font-size:11px;color:rgba(255,255,255,.8);font-family:var(--font-mono)">${d.avg_latency.toFixed(2)}s</span></div></div><div class="compare-score">${d.run_count} runs</div></div>`).join('');
+  }catch{toast('Could not load compare','error');}
+}
+
+function showNewPromptForm(){
+  showPage('prompts');selectedPromptId=null;
+  document.getElementById('no-prompt-selected').style.display='none';
+  document.getElementById('prompt-detail').style.display='none';
+  document.getElementById('prompt-actions').style.display='none';
+  document.getElementById('new-prompt-form').style.display='block';
+  document.getElementById('prompt-detail-title').textContent='New prompt';
   renderSidebar();
 }
 
-async function createPrompt() {
-  const name = document.getElementById('new-prompt-name').value.trim();
-  if (!name) { toast('Enter a prompt name', true); return; }
-  try {
-    const r = await fetch(`${API}/prompts`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
-    const p = await r.json();
-    toast('Prompt created!');
-    document.getElementById('new-prompt-name').value = '';
-    await loadPrompts();
-    selectPrompt(p.id, p.name);
-  } catch(e) { toast('Error creating prompt', true); }
+async function createPrompt(){
+  const name=document.getElementById('new-prompt-name').value.trim();
+  if(!name){toast('Enter a prompt name','error');return;}
+  try{const r=await fetch(`${API}/prompts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const p=await r.json();toast('Prompt created!');document.getElementById('new-prompt-name').value='';await loadPrompts();selectPrompt(p.id,p.name);}
+  catch{toast('Error creating prompt','error');}
 }
 
-async function addVersion() {
-  const content = document.getElementById('new-version-content').value.trim();
-  if (!content || !selectedPromptId) { toast('Enter version content', true); return; }
-  try {
-    await fetch(`${API}/prompts/${selectedPromptId}/versions`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content}) });
-    toast('Version saved!');
-    document.getElementById('new-version-content').value = '';
-    await loadPromptDetail(selectedPromptId);
-    switchSection('versions');
-  } catch(e) { toast('Error saving version', true); }
+async function addVersion(){
+  const content=document.getElementById('new-version-content').value.trim();
+  if(!content||!selectedPromptId){toast('Enter version content','error');return;}
+  try{await fetch(`${API}/prompts/${selectedPromptId}/versions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})});toast('Version saved!');document.getElementById('new-version-content').value='';await loadPrompts();await loadPromptDetail(selectedPromptId);renderSidebar();switchSection('versions');}
+  catch{toast('Error saving version','error');}
 }
 
-function populateExpSelect() {
-  const sel = document.getElementById('exp-prompt-select');
-  sel.innerHTML = '<option value="">Select a prompt...</option>' + prompts.map(p => `<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+function populateExpSelect(){document.getElementById('exp-prompt-select').innerHTML='<option value="">Select a prompt...</option>'+prompts.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');}
+
+async function runExperiment(){
+  if(!ollamaOnline){toast('Ollama is offline','error');return;}
+  const promptId=parseInt(document.getElementById('exp-prompt-select').value);
+  const inputText=document.getElementById('exp-input').value.trim();
+  if(!promptId||!inputText){toast('Select a prompt and enter input','error');return;}
+  const btn=document.getElementById('run-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Running...';
+  document.getElementById('exp-empty').style.display='none';document.getElementById('exp-results-card').style.display='none';
+  try{
+    const r=await fetch(`${API}/experiments/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt_id:promptId,input_text:inputText})});
+    if(!r.ok){const err=await r.json();toast(err?.detail?.message||err?.detail||'Failed','error');document.getElementById('exp-empty').style.display='block';if(err?.detail?.error==='ollama_offline'){ollamaOnline=false;checkOllama();}}
+    else{const data=await r.json();renderExpResults(data);toast('Experiment complete!');loadDashboard();}
+  }catch{toast('Network error','error');document.getElementById('exp-empty').style.display='block';}
+  btn.disabled=false;btn.innerHTML='Run experiment';
 }
 
-async function runExperiment() {
-  const promptId = parseInt(document.getElementById('exp-prompt-select').value);
-  const inputText = document.getElementById('exp-input').value.trim();
-  if (!promptId || !inputText) { toast('Select a prompt and enter input', true); return; }
-  const btn = document.getElementById('run-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Running...';
-  document.getElementById('exp-empty').style.display = 'none';
-  document.getElementById('exp-results-card').style.display = 'none';
-  try {
-    const r = await fetch(`${API}/experiments/run`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt_id:promptId, input_text:inputText}) });
-    const data = await r.json();
-    renderExpResults(data);
-    toast('Experiment complete!');
-  } catch(e) { toast('Experiment failed — is the API running?', true); document.getElementById('exp-empty').style.display = 'block'; }
-  btn.disabled = false;
-  btn.innerHTML = 'Run experiment';
+function renderExpResults(data){
+  document.getElementById('exp-results-card').style.display='block';
+  document.getElementById('exp-results').innerHTML=data.results.map(r=>{
+    const isBest=data.best_version&&r.version===data.best_version.version;const s=r.scores||{};
+    return `<div class="result-card${isBest?' best-card':''}"><div class="result-header"><span class="version-tag">v${r.version}${isBest?' &#9733; best':''}</span><div style="display:flex;align-items:center;gap:8px">${r.error?'<span class="error-badge">LLM Error</span>':''}<span class="latency-badge">${r.latency.toFixed(2)}s</span><span style="font-family:var(--font-mono);font-size:16px;font-weight:600;color:${sc(r.score)}">${r.score.toFixed(1)}</span></div></div><div class="output-text">${esc(r.output)}</div><div class="score-breakdown"><div class="score-dim"><div class="score-dim-label">Clarity</div><div class="score-dim-val" style="color:var(--accent2)">${(s.clarity||0).toFixed(1)}</div></div><div class="score-dim"><div class="score-dim-label">Relevance</div><div class="score-dim-val" style="color:var(--accent3)">${(s.relevance||0).toFixed(1)}</div></div><div class="score-dim"><div class="score-dim-label">Grammar</div><div class="score-dim-val" style="color:var(--accent)">${(s.grammar||0).toFixed(1)}</div></div></div></div>`;
+  }).join('');
+  killChart('es');charts['es']=new Chart(document.getElementById('chart-exp-scores'),{type:'bar',data:{labels:data.results.map(r=>`v${r.version}`),datasets:[{label:'Clarity',data:data.results.map(r=>r.scores?.clarity||0),backgroundColor:'rgba(56,189,248,.5)',borderColor:'rgba(56,189,248,.9)',borderWidth:1,borderRadius:4},{label:'Relevance',data:data.results.map(r=>r.scores?.relevance||0),backgroundColor:'rgba(244,114,182,.5)',borderColor:'rgba(244,114,182,.9)',borderWidth:1,borderRadius:4},{label:'Grammar',data:data.results.map(r=>r.scores?.grammar||0),backgroundColor:'rgba(126,232,162,.5)',borderColor:'rgba(126,232,162,.9)',borderWidth:1,borderRadius:4},{label:'Composite',data:data.results.map(r=>r.score),backgroundColor:'rgba(251,191,36,.5)',borderColor:'rgba(251,191,36,.9)',borderWidth:1,borderRadius:4}]},options:cOpts({max:10,yLabel:'Score',grouped:true})});
 }
 
-function renderExpResults(data) {
-  const card = document.getElementById('exp-results-card');
-  const el = document.getElementById('exp-results');
-  const bb = document.getElementById('best-badge');
-  card.style.display = 'block';
-  if (data.best_version) {
-    bb.style.display = 'inline-flex';
-    document.getElementById('best-version-num').textContent = data.best_version.version;
-  }
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:80px 1fr 100px 100px;gap:12px;padding:8px 0;color:var(--muted);font-size:11px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);">
-      <span>Version</span><span>Output</span><span>Score</span><span>Latency</span>
-    </div>
-    ${data.results.map(r => `
-    <div class="result-row">
-      <div>
-        <span class="version-tag">v${r.version}</span>
-        ${data.best_version && r.version === data.best_version.version ? '<div style="font-size:10px;color:var(--accent);font-family:var(--font-mono);margin-top:4px;">best</div>' : ''}
-      </div>
-      <div class="output-text">${escHtml(r.output)}</div>
-      <div class="score-bar">
-        <span class="score-num" style="${r.score >= 7 ? 'color:var(--accent)' : r.score >= 4 ? 'color:var(--warn)' : 'color:var(--danger)'}">${r.score.toFixed(1)}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${r.score*10}%"></div></div>
-      </div>
-      <div class="latency-badge">${r.latency.toFixed(2)}s</div>
-    </div>`).join('')}
-  `;
+function populateHistoryFilter(){document.getElementById('history-filter').innerHTML='<option value="">All prompts</option>'+prompts.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');}
+
+async function loadHistory(){
+  const fid=document.getElementById('history-filter').value;
+  const el=document.getElementById('history-list');
+  el.innerHTML='<div style="color:var(--muted);padding:16px 0;font-size:13px">Loading...</div>';
+  try{
+    const r=await fetch(fid?`${API}/experiments?prompt_id=${fid}`:`${API}/experiments`);const data=await r.json();
+    if(!data.length){el.innerHTML='<div class="empty" style="padding:30px 0"><div class="empty-title">No experiments yet</div></div>';return;}
+    const pm={};prompts.forEach(p=>pm[p.id]=p.name);
+    el.innerHTML=data.map(e=>`<div class="history-row" onclick="viewExpDetail(${e.id})"><span style="font-family:var(--font-mono);color:var(--muted);font-size:12px">#${e.id}</span><span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(e.input_text)}</span><span style="font-size:12px;color:var(--accent2)">${esc(pm[e.prompt_id]||'#'+e.prompt_id)}</span><span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">${e.result_count} results</span><span style="font-size:11px;color:var(--muted)">${fmtDate(e.created_at)}</span></div>`).join('');
+  }catch{el.innerHTML='<div style="color:var(--danger);padding:16px 0">Could not load history</div>';}
 }
 
-async function loadDashboard() {
-  document.getElementById('stat-prompts').textContent = prompts.length || '—';
-  const el = document.getElementById('recent-prompts-list');
-  if (!prompts.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-title">No prompts yet</div><div class="empty-sub">Create your first prompt to get started</div></div>';
-    return;
-  }
-  el.innerHTML = prompts.slice(0,5).map(p => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-weight:500;">${escHtml(p.name)}</div>
-        <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">ID #${p.id}</div>
-      </div>
-      <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;" onclick="selectPrompt(${p.id},'${escHtml(p.name)}')">Open</button>
-    </div>
-  `).join('') + (prompts.length > 5 ? `<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px;">+${prompts.length-5} more</div>` : '');
+async function viewExpDetail(id){
+  document.getElementById('history-card').style.display='none';
+  document.getElementById('exp-detail').style.display='block';
+  document.getElementById('exp-detail-title').textContent=`Experiment #${id}`;
+  const content=document.getElementById('exp-detail-content');
+  content.innerHTML='<div style="color:var(--muted);font-size:13px">Loading...</div>';
+  try{
+    const r=await fetch(`${API}/experiments/${id}`);const data=await r.json();
+    content.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="card-title">Input</div><div class="output-text" style="max-height:none">${esc(data.input_text||'')}</div><div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-top:8px">${fmtDate(data.created_at)}</div></div>`
+    +(data.results||[]).map(r=>{
+      const s=r.scores||{};const isBest=r.version_id===data.best_version;
+      return `<div class="result-card${isBest?' best-card':''}"><div class="result-header"><span class="version-tag">version #${r.version_id}${isBest?' &#9733; best':''}</span><div style="display:flex;gap:8px;align-items:center"><span class="latency-badge">${(r.latency||0).toFixed(2)}s</span><span style="font-family:var(--font-mono);font-size:16px;font-weight:600;color:${sc(r.score)}">${(r.score||0).toFixed(1)}</span></div></div><div class="output-text">${esc(r.output||'')}</div><div class="score-breakdown"><div class="score-dim"><div class="score-dim-label">Clarity</div><div class="score-dim-val" style="color:var(--accent2)">${(s.clarity||0).toFixed(1)}</div></div><div class="score-dim"><div class="score-dim-label">Relevance</div><div class="score-dim-val" style="color:var(--accent3)">${(s.relevance||0).toFixed(1)}</div></div><div class="score-dim"><div class="score-dim-label">Grammar</div><div class="score-dim-val" style="color:var(--accent)">${(s.grammar||0).toFixed(1)}</div></div></div></div>`;
+    }).join('');
+  }catch{content.innerHTML='<div style="color:var(--danger)">Could not load experiment</div>';}
 }
 
-loadPrompts();
-loadDashboard();
+function closeExpDetail(){
+  document.getElementById('history-card').style.display='block';
+  document.getElementById('exp-detail').style.display='none';
+}
+
+async function loadDashboard(){
+  document.getElementById('stat-prompts').textContent=prompts.length||'--';
+  document.getElementById('stat-versions').textContent=prompts.reduce((a,p)=>a+(p.version_count||0),0)||'--';
+  try{
+    const r=await fetch(`${API}/experiments`);const exps=await r.json();
+    document.getElementById('stat-experiments').textContent=exps.length||'--';
+    const last10=exps.slice(0,10).reverse();
+    const td=await Promise.all(last10.map(async e=>{
+      try{const rd=await fetch(`${API}/experiments/${e.id}`);const d=await rd.json();
+        const sc2=(d.results||[]).map(r=>r.score).filter(Boolean);
+        const lts=(d.results||[]).map(r=>r.latency).filter(Boolean);
+        return{id:e.id,avgScore:sc2.length?sc2.reduce((a,b)=>a+b,0)/sc2.length:0,avgLatency:lts.length?lts.reduce((a,b)=>a+b,0)/lts.length:0};}
+      catch{return{id:e.id,avgScore:0,avgLatency:0};}
+    }));
+    const all=td.map(d=>d.avgScore).filter(Boolean);
+    if(all.length)document.getElementById('stat-avg-score').textContent=(all.reduce((a,b)=>a+b,0)/all.length).toFixed(1);
+    killChart('st');killChart('lt');
+    charts['st']=new Chart(document.getElementById('chart-score-trend'),{type:'line',data:{labels:td.map(d=>`#${d.id}`),datasets:[{label:'Avg score',data:td.map(d=>parseFloat(d.avgScore.toFixed(2))),borderColor:'rgba(126,232,162,.8)',backgroundColor:'rgba(126,232,162,.08)',fill:true,tension:.4,pointBackgroundColor:'rgba(126,232,162,1)',pointRadius:4}]},options:cOpts({max:10,yLabel:'Score'})});
+    charts['lt']=new Chart(document.getElementById('chart-latency-trend'),{type:'line',data:{labels:td.map(d=>`#${d.id}`),datasets:[{label:'Avg latency (s)',data:td.map(d=>parseFloat(d.avgLatency.toFixed(2))),borderColor:'rgba(56,189,248,.8)',backgroundColor:'rgba(56,189,248,.08)',fill:true,tension:.4,pointBackgroundColor:'rgba(56,189,248,1)',pointRadius:4}]},options:cOpts({yLabel:'Seconds'})});
+  }catch{}
+  const el=document.getElementById('recent-prompts-list');
+  if(!prompts.length){el.innerHTML='<div class="empty"><div class="empty-title">No prompts yet</div></div>';return;}
+  el.innerHTML=prompts.slice(0,5).map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:500">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">#${p.id} &middot; ${p.version_count} version${p.version_count!==1?'s':''}</div></div><button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="selectPrompt(${p.id},'${esc(p.name)}')">Open</button></div>`).join('')+(prompts.length>5?`<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">+${prompts.length-5} more</div>`:'');
+}
+
+(async()=>{await checkOllama();await loadPrompts();loadDashboard();setInterval(checkOllama,30000);})();
 </script>
 </body>
 </html>
