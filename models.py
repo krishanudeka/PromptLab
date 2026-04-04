@@ -46,7 +46,15 @@ class Result(Base):
     experiment_id = Column(Integer, ForeignKey("experiments.id"))
     version_id = Column(Integer, ForeignKey("prompt_versions.id"))
     output = Column(Text)
+
+    # Composite score (weighted average of the 3 below)
     score = Column(Float)
+
+    # Multi-dimensional scores
+    clarity_score = Column(Float, default=0.0)
+    relevance_score = Column(Float, default=0.0)
+    grammar_score = Column(Float, default=0.0)
+
     latency = Column(Float)
 
     experiment = relationship("Experiment", back_populates="results")
