@@ -1,7 +1,5 @@
 # PromptLab
 
-# 🚀 PromptLab
-
 **PromptLab** is a full-stack prompt evaluation platform that enables systematic experimentation, comparison, and scoring of multiple prompt versions using local LLMs.
 
 It is designed to help developers, researchers, and AI engineers understand how prompt design impacts model performance across multiple quality dimensions.
