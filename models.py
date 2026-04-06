@@ -6,56 +6,57 @@ from database import Base
 class Prompt(Base):
     __tablename__ = "prompts"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    id         = Column(Integer, primary_key=True, index=True)
+    name       = Column(String, index=True)
     created_at = Column(DateTime, default=func.now())
 
-    versions = relationship("PromptVersion", back_populates="prompt", cascade="all, delete-orphan")
-    experiments = relationship("Experiment", back_populates="prompt", cascade="all, delete-orphan")
+    versions    = relationship("PromptVersion", back_populates="prompt",     cascade="all, delete-orphan")
+    experiments = relationship("Experiment",    back_populates="prompt",     cascade="all, delete-orphan")
 
 
 class PromptVersion(Base):
     __tablename__ = "prompt_versions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    prompt_id = Column(Integer, ForeignKey("prompts.id"))
+    id             = Column(Integer, primary_key=True, index=True)
+    prompt_id      = Column(Integer, ForeignKey("prompts.id"))
     version_number = Column(Integer)
-    content = Column(Text)
-    created_at = Column(DateTime, default=func.now())
+    content        = Column(Text)
+    created_at     = Column(DateTime, default=func.now())
 
-    prompt = relationship("Prompt", back_populates="versions")
-    results = relationship("Result", back_populates="version", cascade="all, delete-orphan")
+    prompt  = relationship("Prompt",  back_populates="versions")
+    results = relationship("Result",  back_populates="version", cascade="all, delete-orphan")
 
 
 class Experiment(Base):
     __tablename__ = "experiments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    prompt_id = Column(Integer, ForeignKey("prompts.id"))
+    id         = Column(Integer, primary_key=True, index=True)
+    prompt_id  = Column(Integer, ForeignKey("prompts.id"))
     input_text = Column(Text)
     created_at = Column(DateTime, default=func.now())
 
-    prompt = relationship("Prompt", back_populates="experiments")
-    results = relationship("Result", back_populates="experiment", cascade="all, delete-orphan")
+    prompt  = relationship("Prompt",  back_populates="experiments")
+    results = relationship("Result",  back_populates="experiment", cascade="all, delete-orphan")
 
 
 class Result(Base):
     __tablename__ = "results"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id            = Column(Integer, primary_key=True, index=True)
     experiment_id = Column(Integer, ForeignKey("experiments.id"))
-    version_id = Column(Integer, ForeignKey("prompt_versions.id"))
-    output = Column(Text)
+    version_id    = Column(Integer, ForeignKey("prompt_versions.id"))
+    output        = Column(Text)
 
-    # Composite score (weighted average of the 3 below)
-    score = Column(Float)
+    # Composite score (weighted average of dimensions below)
+    score         = Column(Float, default=0.0)
 
-    # Multi-dimensional scores
-    clarity_score = Column(Float, default=0.0)
+    # Per-dimension scores  ← depth_score added to match ChatGPT's main.py
+    clarity_score   = Column(Float, default=0.0)
     relevance_score = Column(Float, default=0.0)
-    grammar_score = Column(Float, default=0.0)
+    grammar_score   = Column(Float, default=0.0)
+    depth_score     = Column(Float, default=0.0)   # ← NEW — was missing
 
-    latency = Column(Float)
+    latency = Column(Float, default=0.0)
 
     experiment = relationship("Experiment", back_populates="results")
-    version = relationship("PromptVersion", back_populates="results")
+    version    = relationship("PromptVersion", back_populates="results")
