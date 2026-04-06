@@ -89,12 +89,12 @@ This transforms prompt engineering into an **engineering discipline instead of g
 flowchart LR
 
 A[Prompt Versions] --> B[Experiment Engine]
-B --> C[LLM (Ollama)]
+B --> C[LLM - Ollama]
 C --> D[Generated Outputs]
 D --> E[Evaluation Parser]
 E --> F[Scoring Engine]
-F --> G[Database (SQLite)]
-G --> H[API Layer (FastAPI)]
+F --> G[Database - SQLite]
+G --> H[API Layer - FastAPI]
 H --> I[Frontend Dashboard]
 ```
 
