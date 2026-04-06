@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 
-# ---------------- Request schemas ----------------
+# ---------------- REQUEST SCHEMAS ----------------
 
 class PromptCreate(BaseModel):
     name: str
@@ -18,7 +18,14 @@ class ExperimentRun(BaseModel):
     input_text: str
 
 
-# ---------------- Response schemas ----------------
+# ---------------- RESPONSE SCHEMAS ----------------
+
+class ScoresDetail(BaseModel):
+    clarity: float
+    relevance: float
+    grammar: float
+    depth: float   # ✅ FIXED (was composite before)
+
 
 class VersionResponse(BaseModel):
     id: int
@@ -26,6 +33,7 @@ class VersionResponse(BaseModel):
     content: str
     created_at: Optional[datetime] = None
     avg_score: Optional[float] = None
+    run_count: int = 0
 
     class Config:
         from_attributes = True
@@ -36,6 +44,7 @@ class PromptResponse(BaseModel):
     name: str
     created_at: Optional[datetime] = None
     version_count: int = 0
+    experiment_count: int = 0
 
     class Config:
         from_attributes = True
@@ -46,6 +55,13 @@ class ResultResponse(BaseModel):
     version_id: int
     output: str
     score: float
+
+    # Per-metric scores
+    clarity_score: Optional[float] = None
+    relevance_score: Optional[float] = None
+    grammar_score: Optional[float] = None
+    depth_score: Optional[float] = None   # ✅ FIXED
+
     latency: float
 
     class Config:
@@ -57,7 +73,9 @@ class ExperimentResponse(BaseModel):
     prompt_id: int
     input_text: str
     created_at: Optional[datetime] = None
-    results: list[ResultResponse] = []
+
+    # Safe default (no mutable bug)
+    results: List[ResultResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
