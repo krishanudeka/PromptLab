@@ -1,34 +1,27 @@
-import asyncio
+import re
 import time
-
+import asyncio
 import httpx
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-
 from database import SessionLocal, engine, Base
 import models
 import schemas
-
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="PromptLab API", version="3.0.0")
+app = FastAPI(title="PromptLab Elite Pro", version="4.5.0")
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
 Base.metadata.create_all(bind=engine)
-
-OLLAMA_BASE = "http://localhost:11434"
-OLLAMA_TIMEOUT = 30
-
-
-# ---------------- DB Dependency ----------------
+DEBUG = False
+# Use 127.0.0.1 for Windows stability
+OLLAMA_BASE = "http://127.0.0.1:11434"
+LLM_MODEL   = "phi"
+TIMEOUT     = 600 # 10 Minutes
 
 def get_db():
     db = SessionLocal()
@@ -37,424 +30,256 @@ def get_db():
     finally:
         db.close()
 
+# ── OLLAMA UTILITIES ─────────────────────────────────────────
 
-# ---------------- Ollama Health Check ----------------
-
-async def is_ollama_running() -> bool:
+async def is_ollama_running():
     try:
-        async with httpx.AsyncClient(timeout=3) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(f"{OLLAMA_BASE}/api/tags")
             return r.status_code == 200
-    except Exception:
+    except Exception as e:
+        print(f"[OLLAMA HEALTH ERROR] {e}")
         return False
 
+async def call_ollama(prompt: str):
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                response = await client.post(
+                    f"{OLLAMA_BASE}/api/generate",
+                    json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
+                )
+                res = response.json().get("response", "").strip()
+                print(f"[OLLAMA] Generated {len(res)} characters.")
+                return res
+        except Exception as e:
+            print(f"[OLLAMA ERROR] Attempt {attempt+1} failed: {e}")
+            if attempt == 0: await asyncio.sleep(3)
+    return ""
 
-# ---------------- Health ----------------
+# ── ADVANCED PARSER ──────────────────────────────────────────
 
-@app.get("/")
-def home():
-    return {"message": "PromptLab API is running 🚀", "version": "3.0.0"}
+def _parse_response(raw: str):
+    """Detects scores anywhere in text, handles decimals/separators."""
+    scores = {"CLARITY": 5.0, "RELEVANCE": 5.0, "GRAMMAR": 5.0, "DEPTH": 5.0}
 
+    if DEBUG:
+        print("\n" + "="*30 + "\nDEBUG: RAW AI RESPONSE CONTENT:\n" + raw + "\n" + "="*30)
+
+    for key in scores.keys():
+        # Captures Clarity: 9, Clarity=9.5, Clarity - 8/10
+        pattern = rf"{key}\s*[:=\-]?\s*(\d+(\.\d+)?)"
+        match = re.search(pattern, raw, re.IGNORECASE)
+        if match:
+            scores[key] = max(1.0, min(10.0, float(match.group(1))))
+
+    # Remove score lines from final display answer
+    lines = raw.splitlines()
+    clean = [l for l in lines if not l.upper().strip().startswith(tuple(scores.keys()))]
+    answer = "\n".join(clean).strip() or raw
+
+    return answer, scores["CLARITY"], scores["RELEVANCE"], scores["GRAMMAR"], scores["DEPTH"]
+
+# ── HEALTH & STATS ──────────────────────────────────────────
 
 @app.get("/health")
-async def health_check():
-    ollama_up = await is_ollama_running()
+async def health():
+    up = await is_ollama_running()
+    return {"ollama": "ok" if up else "offline"}
+
+@app.get("/stats")
+def global_stats(db: Session = Depends(get_db)):
+    avg = db.query(func.avg(models.Result.score)).scalar()
     return {
-        "api": "ok",
-        "ollama": "ok" if ollama_up else "offline",
-        "ollama_url": OLLAMA_BASE,
+        "total_prompts": db.query(func.count(models.Prompt.id)).scalar() or 0,
+        "total_versions": db.query(func.count(models.PromptVersion.id)).scalar() or 0,
+        "total_experiments": db.query(func.count(models.Experiment.id)).scalar() or 0,
+        "avg_score": round(avg, 2) if avg else 0.0
     }
 
+@app.get("/stats/{prompt_id}")
+def prompt_stats(prompt_id: int, db: Session = Depends(get_db)):
+    p = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
+    if not p: raise HTTPException(404)
 
-# ---------------- Prompts ----------------
+    best = db.query(models.PromptVersion.version_number, func.avg(models.Result.score)).join(models.Result).filter(models.PromptVersion.prompt_id == prompt_id).group_by(models.PromptVersion.id).order_by(func.avg(models.Result.score).desc()).first()
+
+    # Calculate actual trend data for the charts
+    exps = db.query(models.Experiment).filter(models.Experiment.prompt_id == prompt_id).order_by(models.Experiment.created_at.desc()).limit(10).all()
+    trend = []
+    for e in reversed(exps):
+        avg_s = db.query(func.avg(models.Result.score)).filter(models.Result.experiment_id == e.id).scalar()
+        avg_l = db.query(func.avg(models.Result.latency)).filter(models.Result.experiment_id == e.id).scalar()
+        trend.append({"experiment_id": e.id, "avg_score": avg_s or 0, "avg_latency": avg_l or 0})
+
+    return {
+        "version_count": len(p.versions),
+        "experiment_count": len(p.experiments),
+        "best_version": {"version_number": best[0], "avg_score": round(best[1],1)} if best else None,
+        "trend": trend
+    }
+
+# ── PROMPTS & VERSIONS ───────────────────────────────────────
 
 @app.get("/prompts")
 def list_prompts(db: Session = Depends(get_db)):
-    prompts = db.query(models.Prompt).order_by(models.Prompt.created_at.desc()).all()
-    result = []
-    for p in prompts:
-        version_count = db.query(func.count(models.PromptVersion.id)).filter(
-            models.PromptVersion.prompt_id == p.id
-        ).scalar()
-        result.append({
-            "id": p.id,
-            "name": p.name,
-            "created_at": p.created_at,
-            "version_count": version_count or 0,
-        })
-    return result
-
-
-@app.get("/prompts/{prompt_id}")
-def get_prompt(prompt_id: int, db: Session = Depends(get_db)):
-    prompt = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
-    if not prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-    version_count = db.query(func.count(models.PromptVersion.id)).filter(
-        models.PromptVersion.prompt_id == prompt_id
-    ).scalar()
-    return {
-        "id": prompt.id,
-        "name": prompt.name,
-        "created_at": prompt.created_at,
-        "version_count": version_count or 0,
-    }
-
-
-@app.post("/prompts", status_code=201)
-def create_prompt(data: schemas.PromptCreate, db: Session = Depends(get_db)):
-    new_prompt = models.Prompt(name=data.name)
-    db.add(new_prompt)
-    db.commit()
-    db.refresh(new_prompt)
-    return {"id": new_prompt.id, "name": new_prompt.name, "created_at": new_prompt.created_at, "version_count": 0}
-
-
-@app.delete("/prompts/{prompt_id}", status_code=204)
-def delete_prompt(prompt_id: int, db: Session = Depends(get_db)):
-    prompt = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
-    if not prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-    db.delete(prompt)
-    db.commit()
-
-
-# ---------------- Versions ----------------
+    # Explicit mapping fixes the 'undefinedv' sidebar issue
+    prompts = db.query(models.Prompt).order_by(models.Prompt.id.desc()).all()
+    return [{
+        "id": p.id, "name": p.name, 
+        "version_count": len(p.versions), 
+        "experiment_count": len(p.experiments)
+    } for p in prompts]
 
 @app.get("/prompts/{prompt_id}/versions")
 def list_versions(prompt_id: int, db: Session = Depends(get_db)):
-    prompt = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
-    if not prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
+    v_list = db.query(models.PromptVersion).filter(models.PromptVersion.prompt_id == prompt_id).all()
+    
+    # Ranking Logic
+    temp = [{"id": x.id, "avg": db.query(func.avg(models.Result.score)).filter(models.Result.version_id == x.id).scalar() or 0} for x in v_list]
+    temp.sort(key=lambda x: x["avg"], reverse=True)
+    rank_map = {item["id"]: i + 1 for i, item in enumerate(temp) if item["avg"] > 0}
 
-    versions = db.query(models.PromptVersion).filter(
-        models.PromptVersion.prompt_id == prompt_id
-    ).order_by(models.PromptVersion.version_number).all()
+    return [{
+        "id": v.id, "version_number": v.version_number, "content": v.content,
+        "avg_score": round(db.query(func.avg(models.Result.score)).filter(models.Result.version_id == v.id).scalar() or 0, 1),
+        "run_count": len(v.results), "rank": rank_map.get(v.id)
+    } for v in v_list]
 
-    result = []
-    for v in versions:
-        avg_score = db.query(func.avg(models.Result.score)).filter(
-            models.Result.version_id == v.id
-        ).scalar()
-        result.append({
-            "id": v.id,
-            "version_number": v.version_number,
-            "content": v.content,
-            "created_at": v.created_at,
-            "avg_score": round(avg_score, 2) if avg_score is not None else None,
-        })
-    return result
-
-
-@app.post("/prompts/{prompt_id}/versions", status_code=201)
-def create_version(prompt_id: int, data: schemas.VersionCreate, db: Session = Depends(get_db)):
-    prompt = db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
-    if not prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
-
-    max_version = db.query(func.max(models.PromptVersion.version_number)).filter(
-        models.PromptVersion.prompt_id == prompt_id
-    ).scalar()
-
-    version_number = (max_version or 0) + 1
-    new_version = models.PromptVersion(
-        prompt_id=prompt_id,
-        version_number=version_number,
-        content=data.content,
-    )
-    db.add(new_version)
-    db.commit()
-    db.refresh(new_version)
-    return new_version
-
-
-@app.delete("/prompts/{prompt_id}/versions/{version_id}", status_code=204)
-def delete_version(prompt_id: int, version_id: int, db: Session = Depends(get_db)):
-    version = db.query(models.PromptVersion).filter(
-        models.PromptVersion.id == version_id,
-        models.PromptVersion.prompt_id == prompt_id,
-    ).first()
-    if not version:
-        raise HTTPException(status_code=404, detail="Version not found")
-    db.delete(version)
-    db.commit()
-
-
-# ---------------- LLM helpers ----------------
-
-async def call_ollama(prompt: str, model: str, timeout: int = OLLAMA_TIMEOUT) -> str:
-    """Core Ollama call — raises on failure so callers can handle gracefully."""
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(
-            f"{OLLAMA_BASE}/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False},
-        )
-        response.raise_for_status()
-        return response.json().get("response", "").strip()
-
-
-async def run_llm_async(prompt_content: str, user_input: str, model: str = "mistral") -> str:
-    full_prompt = f"{prompt_content}\n\nUser Input:\n{user_input}"
-    try:
-        return await call_ollama(full_prompt, model)
-    except Exception as e:
-        return f"[LLM Error: {str(e)}]"
-
-
-async def score_dimension(output: str, user_input: str, dimension: str, model: str = "phi") -> float:
-    """
-    Score a single quality dimension from 1–10.
-    dimension: 'clarity', 'relevance', 'grammar'
-    """
-    dimension_prompts = {
-        "clarity": (
-            f"Rate the CLARITY of the following response from 1 to 10.\n"
-            f"Clarity means: easy to understand, well-structured, no ambiguity.\n\n"
-            f"Response:\n{output}\n\nOnly return a single number between 1 and 10. Nothing else."
-        ),
-        "relevance": (
-            f"Rate the RELEVANCE of the following response to the given user input from 1 to 10.\n"
-            f"Relevance means: directly answers what was asked, stays on topic.\n\n"
-            f"User input: {user_input}\n\n"
-            f"Response:\n{output}\n\nOnly return a single number between 1 and 10. Nothing else."
-        ),
-        "grammar": (
-            f"Rate the GRAMMAR and writing quality of the following response from 1 to 10.\n"
-            f"Consider: spelling, sentence structure, punctuation, fluency.\n\n"
-            f"Response:\n{output}\n\nOnly return a single number between 1 and 10. Nothing else."
-        ),
-    }
-
-    prompt = dimension_prompts.get(dimension, dimension_prompts["clarity"])
-
-    try:
-        raw = await call_ollama(prompt, model, timeout=15)
-        # Extract first number found in response
-        import re
-        numbers = re.findall(r"\b([1-9]|10)\b", raw)
-        if numbers:
-            return round(float(numbers[0]), 2)
-        return 5.0
-    except Exception:
-        return 5.0
-
-
-async def evaluate_multi_async(output: str, user_input: str, model: str = "phi") -> dict:
-    """Run all 3 scoring dimensions concurrently and return scores + composite."""
-    clarity, relevance, grammar = await asyncio.gather(
-        score_dimension(output, user_input, "clarity", model),
-        score_dimension(output, user_input, "relevance", model),
-        score_dimension(output, user_input, "grammar", model),
-    )
-
-    # Weighted composite: relevance matters most
-    composite = round(
-        (clarity * 0.30) + (relevance * 0.50) + (grammar * 0.20),
-        2,
-    )
-
-    return {
-        "clarity": clarity,
-        "relevance": relevance,
-        "grammar": grammar,
-        "composite": composite,
-    }
-
-
-async def run_version(version: models.PromptVersion, input_text: str):
-    """Run LLM + multi-dim evaluation for a single version."""
-    start = time.time()
-    output = await run_llm_async(version.content, input_text)
-    latency = round(time.time() - start, 3)
-
-    # If LLM failed, return safe defaults
-    if output.startswith("[LLM Error"):
-        return {
-            "version": version.version_number,
-            "version_id": version.id,
-            "output": output,
-            "score": 0.0,
-            "scores": {"clarity": 0.0, "relevance": 0.0, "grammar": 0.0, "composite": 0.0},
-            "latency": latency,
-            "error": True,
-        }
-
-    scores = await evaluate_multi_async(output, input_text)
-
-    return {
-        "version": version.version_number,
-        "version_id": version.id,
-        "output": output,
-        "score": scores["composite"],   # keep top-level score = composite for backward compat
-        "scores": scores,
-        "latency": latency,
-        "error": False,
-    }
-
-
-# ---------------- Experiments ----------------
+# ── THE ULTIMATE EXPERIMENT RUNNER ───────────────────────────
 
 @app.post("/experiments/run")
 async def run_experiment(data: schemas.ExperimentRun, db: Session = Depends(get_db)):
+    if not await is_ollama_running(): raise HTTPException(503, "Ollama Offline")
 
-    # ✅ Check Ollama FIRST — fail fast with a clear error
-    if not await is_ollama_running():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "ollama_offline",
-                "message": "Ollama is not running. Start it with: ollama serve",
-                "tip": "Make sure your model is pulled: ollama pull mistral && ollama pull phi",
-            },
-        )
+    versions = (
+        db.query(models.PromptVersion)
+        .filter(models.PromptVersion.prompt_id == data.prompt_id)
+        .order_by(models.PromptVersion.version_number)
+        .all()
+    )
+    if not versions: raise HTTPException(400, "No versions found")
 
-    prompt = db.query(models.Prompt).filter(models.Prompt.id == data.prompt_id).first()
-    if not prompt:
-        raise HTTPException(status_code=404, detail="Prompt not found")
+    exp = models.Experiment(prompt_id=data.prompt_id, input_text=data.input_text)
+    db.add(exp); db.commit(); db.refresh(exp)
 
-    versions = db.query(models.PromptVersion).filter(
-        models.PromptVersion.prompt_id == data.prompt_id
-    ).all()
+    try:
+        for v in versions:
+            start = time.time()
+            print(f"[EXP] Running v{v.version_number}...")
 
-    if not versions:
-        raise HTTPException(status_code=400, detail="No versions found for this prompt")
+            prompt_text = (
+                f"You are a STRICT technical auditor. First, answer the user question properly.\n"
+                f"Persona to use: {v.content}\n"
+                f"User Question: {data.input_text}\n\n"
+                "After your answer, you MUST STRICTLY provide these 4 scores:\n"
+                "CLARITY: [1-10]\nRELEVANCE: [1-10]\nGRAMMAR: [1-10]\nDEPTH: [1-10]"
+            )
 
-    experiment = models.Experiment(prompt_id=data.prompt_id, input_text=data.input_text)
-    db.add(experiment)
-    db.commit()
-    db.refresh(experiment)
+            raw = await call_ollama(prompt_text)
 
-    # Run all versions concurrently
-    tasks = [run_version(v, data.input_text) for v in versions]
-    results_data = await asyncio.gather(*tasks)
+            if not raw:
+                ans, c, r, g, d, score = "[LLM TIMEOUT ERROR]", 2.0, 2.0, 2.0, 2.0, 2.0
+            else:
+                ans, c, r, g, d = _parse_response(raw)
+                score = round((c*0.25)+(r*0.35)+(g*0.15)+(d*0.25), 2)
 
-    # Persist results
-    for r in results_data:
-        result = models.Result(
-            experiment_id=experiment.id,
-            version_id=r["version_id"],
-            output=r["output"],
-            score=r["score"],
-            clarity_score=r["scores"]["clarity"],
-            relevance_score=r["scores"]["relevance"],
-            grammar_score=r["scores"]["grammar"],
-            latency=r["latency"],
-        )
-        db.add(result)
-    db.commit()
+            res = models.Result(
+                experiment_id=exp.id,
+                version_id=v.id,
+                output=ans,
+                score=score,
+                clarity_score=c,
+                relevance_score=r,
+                grammar_score=g,
+                depth_score=d,
+                latency=round(time.time() - start, 2)
+            )
 
-    results_out = [
-        {
-            "version": r["version"],
-            "output": r["output"],
-            "score": r["score"],
-            "scores": r["scores"],
-            "latency": r["latency"],
-            "error": r.get("error", False),
-        }
-        for r in results_data
-    ]
+            db.add(res)
 
-    successful = [r for r in results_out if not r["error"]]
-    if not successful:
-        raise HTTPException(status_code=500, detail="All LLM calls failed. Check Ollama logs.")
+        db.commit()
 
-    best = max(successful, key=lambda x: x["score"])
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Experiment failed: {str(e)}")
 
-    return {
-        "experiment_id": experiment.id,
-        "results": results_out,
-        "best_version": best,
-    }
+    return get_experiment(exp.id, db)
 
-
-@app.get("/experiments")
-def list_experiments(prompt_id: int = None, db: Session = Depends(get_db)):
-    query = db.query(models.Experiment).order_by(models.Experiment.created_at.desc())
-    if prompt_id:
-        query = query.filter(models.Experiment.prompt_id == prompt_id)
-    experiments = query.limit(100).all()
-    return [
-        {
-            "id": e.id,
-            "prompt_id": e.prompt_id,
-            "input_text": e.input_text,
-            "created_at": e.created_at,
-            "result_count": db.query(func.count(models.Result.id))
-                              .filter(models.Result.experiment_id == e.id)
-                              .scalar() or 0,
-        }
-        for e in experiments
-    ]
-
+# ── DETAIL VIEWS ─────────────────────────────────────────────
 
 @app.get("/experiments/{exp_id}")
 def get_experiment(exp_id: int, db: Session = Depends(get_db)):
-    experiment = db.query(models.Experiment).filter(models.Experiment.id == exp_id).first()
-    if not experiment:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    results = db.query(models.Result).filter(models.Result.experiment_id == exp_id).all()
-
-    if not results:
-        return {"experiment_id": exp_id, "results": [], "best_version": None}
-
-    best = max(results, key=lambda x: x.score)
-
-    return {
-        "experiment_id": exp_id,
-        "input_text": experiment.input_text,
-        "created_at": experiment.created_at,
-        "results": [
-            {
-                "version_id": r.version_id,
-                "output": r.output,
-                "score": r.score,
-                "scores": {
-                    "clarity": r.clarity_score,
-                    "relevance": r.relevance_score,
-                    "grammar": r.grammar_score,
-                    "composite": r.score,
-                },
-                "latency": r.latency,
+    exp = db.query(models.Experiment).filter(models.Experiment.id == exp_id).first()
+    if not exp: raise HTTPException(404)
+    version_map = {
+        v.id: v.version_number
+        for v in db.query(models.PromptVersion).all()
+    }
+    # Safe Version Lookup (No mapping bugs)
+    results = []
+    for r in exp.results:
+        results.append({
+            "version": version_map.get(r.version_id, 0),
+            "output": r.output,
+            "score": r.score,
+            "latency": r.latency,
+            "scores": {
+                "clarity": r.clarity_score,
+                "relevance": r.relevance_score,
+                "grammar": r.grammar_score,
+                "depth": r.depth_score
             }
-            for r in results
-        ],
-        "best_version": best.version_id,
+        })
+
+    valid_results = [r for r in results if r.get("score") is not None]
+
+    best = max(valid_results, key=lambda x: x["score"], default=None)
+    return {
+        "id": exp.id,
+        "input_text": exp.input_text,
+        "created_at": exp.created_at,
+        "results": results,
+        "best_version": {
+            "version": best["version"],
+            "score": best["score"]
+        } if best else None
     }
 
+@app.get("/experiments")
+def list_experiments(db: Session = Depends(get_db)):
+    exps = db.query(models.Experiment).order_by(models.Experiment.created_at.desc()).limit(50).all()
+    return [{"id": e.id, "prompt_id": e.prompt_id, "input_text": e.input_text, "created_at": e.created_at, "result_count": len(e.results)} for e in exps]
 
-# ---------------- Compare ----------------
+@app.post("/prompts")
+def create_prompt(data: schemas.PromptCreate, db: Session = Depends(get_db)):
+    p = models.Prompt(name=data.name); db.add(p); db.commit(); db.refresh(p); return p
+
+@app.post("/prompts/{prompt_id}/versions")
+def create_version(prompt_id: int, data: schemas.VersionCreate, db: Session = Depends(get_db)):
+    last = db.query(func.max(models.PromptVersion.version_number)).filter(models.PromptVersion.prompt_id == prompt_id).scalar() or 0
+    v = models.PromptVersion(prompt_id=prompt_id, version_number=last+1, content=data.content)
+    db.add(v); db.commit(); db.refresh(v); return v
+
 
 @app.get("/prompts/{prompt_id}/compare")
 def compare_versions(prompt_id: int, db: Session = Depends(get_db)):
-    versions = db.query(models.PromptVersion).filter(
-        models.PromptVersion.prompt_id == prompt_id
-    ).order_by(models.PromptVersion.version_number).all()
+    versions = db.query(models.PromptVersion)\
+        .filter(models.PromptVersion.prompt_id == prompt_id)\
+        .order_by(models.PromptVersion.version_number)\
+        .all()
 
-    if not versions:
-        raise HTTPException(status_code=404, detail="No versions found")
-
-    return [
-        {
+    data = []
+    for v in versions:
+        data.append({
             "version": v.version_number,
-            "content": v.content,
-            "avg_score": round(
-                db.query(func.avg(models.Result.score)).filter(models.Result.version_id == v.id).scalar() or 0.0, 2
-            ),
-            "avg_clarity": round(
-                db.query(func.avg(models.Result.clarity_score)).filter(models.Result.version_id == v.id).scalar() or 0.0, 2
-            ),
-            "avg_relevance": round(
-                db.query(func.avg(models.Result.relevance_score)).filter(models.Result.version_id == v.id).scalar() or 0.0, 2
-            ),
-            "avg_grammar": round(
-                db.query(func.avg(models.Result.grammar_score)).filter(models.Result.version_id == v.id).scalar() or 0.0, 2
-            ),
-            "avg_latency": round(
-                db.query(func.avg(models.Result.latency)).filter(models.Result.version_id == v.id).scalar() or 0.0, 3
-            ),
-            "run_count": db.query(func.count(models.Result.id)).filter(models.Result.version_id == v.id).scalar() or 0,
-        }
-        for v in versions
-    ]
+            "avg_score": db.query(func.avg(models.Result.score)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "avg_clarity": db.query(func.avg(models.Result.clarity_score)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "avg_relevance": db.query(func.avg(models.Result.relevance_score)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "avg_grammar": db.query(func.avg(models.Result.grammar_score)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "avg_depth": db.query(func.avg(models.Result.depth_score)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "avg_latency": db.query(func.avg(models.Result.latency)).filter(models.Result.version_id == v.id).scalar() or 0,
+            "run_count": db.query(models.Result).filter(models.Result.version_id == v.id).count()
+        })
+
+    return data
