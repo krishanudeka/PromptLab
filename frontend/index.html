@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PromptLab</title>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div>PromptLab</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="nav-tab" onclick="showPage('prompts')">Prompts</button>
+    <button class="nav-tab" onclick="showPage('experiments')">Experiments</button>
+    <button class="nav-tab" onclick="showPage('history')">History</button>
+  </div>
+  <div class="status-pill checking" id="status-pill" onclick="checkOllama()">
+    <div class="status-dot"></div><span id="status-text">Checking...</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-label">Prompts</div>
+    <div id="sidebar-prompts"></div>
+    <button class="add-btn" onclick="showNewPromptForm()"><span style="font-size:16px;line-height:1">+</span> New prompt</button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="row-header">
+        <div><h1>Dashboard</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">Global overview — all prompts combined</p></div>
+        <button class="btn btn-primary" onclick="showPage('experiments')">Run experiment</button>
+      </div>
+      <div class="offline-card" id="offline-banner">
+        <div style="font-size:20px">&#9888;</div>
+        <div><div class="offline-title">Ollama is offline</div><div class="offline-body">Start: <code>ollama serve</code><br>Pull: <code>ollama pull tinyllama</code></div></div>
+      </div>
+      <div class="grid4" style="margin-bottom:20px">
+        <div class="metric"><div class="metric-label">Total prompts</div><div class="metric-value blue" id="stat-prompts">--</div></div>
+        <div class="metric"><div class="metric-label">Total versions</div><div class="metric-value green" id="stat-versions">--</div></div>
+        <div class="metric"><div class="metric-label">Total experiments</div><div class="metric-value pink" id="stat-experiments">--</div></div>
+        <div class="metric"><div class="metric-label">Global avg score</div><div class="metric-value warn" id="stat-avg-score">--</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="card-title">Score trend (last 10 globally)</div><div class="chart-wrap"><canvas id="chart-score-trend"></canvas></div></div>
+        <div class="card"><div class="card-title">Latency trend (last 10 globally)</div><div class="chart-wrap"><canvas id="chart-latency-trend"></canvas></div></div>
+      </div>
+      <div class="card"><div class="card-title">Recent prompts</div><div id="recent-prompts-list"></div></div>
+    </div>
+
+    <!-- PROMPTS -->
+    <div class="page" id="page-prompts">
+      <div class="row-header">
+        <h1 id="prompt-detail-title">Select a prompt</h1>
+        <div class="row-header-actions" id="prompt-actions" style="display:none">
+          <button class="btn btn-secondary" onclick="switchSection('versions')">Versions</button>
+          <button class="btn btn-secondary" onclick="switchSection('compare')">Compare</button>
+          <button class="btn btn-secondary" onclick="switchSection('pstats')">Stats</button>
+          <button class="btn btn-primary" onclick="switchSection('add-version')">+ Add version</button>
+        </div>
+      </div>
+
+      <div id="no-prompt-selected"><div class="empty"><div class="empty-icon">&#9670;</div><div class="empty-title">No prompt selected</div><div class="empty-sub">Pick from sidebar or create a new one</div></div></div>
+
+      <div id="prompt-detail" style="display:none">
+        <!-- Quick stats strip always visible (Issue 1) -->
+        <div class="prompt-stat-grid">
+          <div class="prompt-stat"><div class="prompt-stat-label">Versions</div><div class="prompt-stat-value green" id="ps-versions">--</div></div>
+          <div class="prompt-stat"><div class="prompt-stat-label">Experiments</div><div class="prompt-stat-value blue" id="ps-experiments">--</div></div>
+          <div class="prompt-stat"><div class="prompt-stat-label">Best version</div><div class="prompt-stat-value pink" id="ps-best">--</div></div>
+          <div class="prompt-stat"><div class="prompt-stat-label">Best avg score</div><div class="prompt-stat-value warn" id="ps-score">--</div></div>
+        </div>
+
+        <div class="inner-tabs">
+          <button class="inner-tab active" onclick="switchSection('versions')">Versions</button>
+          <button class="inner-tab" onclick="switchSection('compare')">Compare</button>
+          <button class="inner-tab" onclick="switchSection('pstats')">This prompt stats</button>
+          <button class="inner-tab" onclick="switchSection('add-version')">+ Add version</button>
+        </div>
+
+        <!-- Issue 4: rank column in versions list -->
+        <div class="section active" id="section-versions"><div id="versions-list"></div></div>
+
+        <div class="section" id="section-compare">
+          <div class="card"><div class="card-title">Composite score per version</div><div class="chart-wrap" style="height:180px"><canvas id="chart-compare-score"></canvas></div></div>
+          <div class="card"><div class="card-title">Clarity / Relevance / Grammar per version</div><div class="chart-wrap" style="height:200px"><canvas id="chart-compare-dims"></canvas></div></div>
+          <div class="card"><div class="card-title">Average latency per version</div><div id="compare-latency-bars"></div></div>
+        </div>
+
+        <!-- Issue 1: per-prompt score + latency trend charts -->
+        <div class="section" id="section-pstats">
+          <div class="grid2">
+            <div class="card"><div class="card-title">Score trend (this prompt)</div><div class="chart-wrap"><canvas id="chart-ps-score"></canvas></div></div>
+            <div class="card"><div class="card-title">Latency trend (this prompt)</div><div class="chart-wrap"><canvas id="chart-ps-latency"></canvas></div></div>
+          </div>
+        </div>
+
+        <div class="section" id="section-add-version">
+          <div class="card"><div class="card-title">New version</div><label>Prompt content</label><textarea id="new-version-content" placeholder="Write your prompt here..."></textarea><button class="btn btn-primary" onclick="addVersion()">Save version</button></div>
+        </div>
+      </div>
+
+      <div id="new-prompt-form" style="display:none">
+        <div class="card"><div class="card-title">Create prompt</div><label>Prompt name</label><input type="text" id="new-prompt-name" placeholder="e.g. Customer support agent"/><button class="btn btn-primary" onclick="createPrompt()">Create prompt</button></div>
+      </div>
+    </div>
+
+    <!-- EXPERIMENTS -->
+    <div class="page" id="page-experiments">
+      <div class="row-header"><div><h1>Run experiment</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">All versions scored on clarity, relevance &amp; grammar</p></div></div>
+      <div class="grid2" style="align-items:start">
+        <div>
+          <div class="offline-card" id="exp-offline-banner">
+            <div style="font-size:20px">&#9888;</div>
+            <div><div class="offline-title">Ollama is offline</div><div class="offline-body"><code>ollama serve</code><br><code>ollama pull tinyllama</code></div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Configuration</div>
+            <label>Prompt</label>
+            <select id="exp-prompt-select"><option value="">Select a prompt...</option></select>
+            <label>User input</label>
+            <textarea id="exp-input" placeholder="Test input sent to every version..." style="min-height:130px"></textarea>
+            <button class="btn btn-primary" id="run-btn" onclick="runExperiment()" style="width:100%;justify-content:center">Run experiment</button>
+          </div>
+          <div class="card" style="margin-top:0">
+            <div class="card-title">Scoring weights</div>
+            <div style="font-size:12px;color:var(--muted);line-height:2;font-family:var(--font-mono)">
+              <span style="color:var(--accent2)">Clarity</span> &mdash; clear &amp; structured &mdash; 25%<br>
+              <span style="color:var(--accent3)">Relevance</span> &mdash; answers the input &mdash; 35%<br>
+              <span style="color:var(--accent)">Grammar</span> &mdash; fluency &amp; quality &mdash; 15%<br>
+              <span style="color:var(--warn)">Depth</span> &mdash; thoroughness &mdash; 25%<br>
+              <span style="color:var(--muted)">Composite</span> &mdash; weighted average
+            </div>
+          </div>
+        </div>
+        <div>
+          <div id="exp-results-card" style="display:none">
+            <div id="exp-results"></div>
+            <div class="card" style="margin-top:0"><div class="card-title">Score comparison chart</div><div class="chart-wrap" style="height:200px"><canvas id="chart-exp-scores"></canvas></div></div>
+          </div>
+          <div id="exp-empty" class="empty" style="padding-top:60px"><div class="empty-icon">&#9656;</div><div class="empty-title">No results yet</div><div class="empty-sub">Configure and run an experiment</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="page" id="page-history">
+      <div class="row-header">
+        <div><h1>Experiment history</h1><p style="color:var(--muted);margin-top:4px;font-size:13px;">Click any row to inspect results</p></div>
+        <div class="row-header-actions">
+          <select id="history-filter" onchange="loadHistory()" style="margin-bottom:0;width:auto;padding:8px 12px"><option value="">All prompts</option></select>
+          <button class="btn btn-secondary" onclick="loadHistory()">Refresh</button>
+        </div>
+      </div>
+      <div class="card" id="history-card">
+        <div class="history-header"><span>ID</span><span>Input</span><span>Prompt</span><span>Results</span><span>Date</span></div>
+        <div id="history-list"></div>
+      </div>
+      <div id="exp-detail" style="display:none">
+        <div class="row-header" style="margin-top:0"><h2 id="exp-detail-title">Experiment</h2><button class="btn btn-secondary" onclick="closeExpDetail()">Back</button></div>
+        <div id="exp-detail-content"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"><div class="toast-dot" id="toast-dot"></div><span id="toast-msg"></span></div>
+
+<script src="app.js"></script>
+</body>
+</html>
