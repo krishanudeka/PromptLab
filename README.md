@@ -1,4 +1,4 @@
-# 🚀 PromptLab
+# PromptLab
 
 **PromptLab** is a full-stack prompt evaluation and experimentation platform designed to systematically analyze, compare, and optimize prompt performance for Large Language Models (LLMs).
 
@@ -6,9 +6,9 @@ It provides a **reproducible, metric-driven framework** for evaluating prompt qu
 
 ---
 
-## ✨ Core Capabilities
+## Core Capabilities
 
-### 🔁 Prompt Versioning System
+### Prompt Versioning System
 
 * Create and manage multiple prompt variants
 * Version-controlled experimentation workflow
@@ -16,7 +16,7 @@ It provides a **reproducible, metric-driven framework** for evaluating prompt qu
 
 ---
 
-### 🧪 Experimentation Engine
+### Experimentation Engine
 
 * Executes the same input across all prompt versions
 * Ensures **controlled, reproducible comparisons**
@@ -24,7 +24,7 @@ It provides a **reproducible, metric-driven framework** for evaluating prompt qu
 
 ---
 
-### 📊 Multi-Dimensional Evaluation (LLM-as-a-Judge)
+### Multi-Dimensional Evaluation (LLM-as-a-Judge)
 
 PromptLab uses an **LLM-based evaluator** to score outputs across structured dimensions:
 
@@ -35,13 +35,13 @@ PromptLab uses an **LLM-based evaluator** to score outputs across structured dim
 | Grammar   | Fluency and linguistic quality     | 15%    |
 | Depth     | Technical completeness and insight | 25%    |
 
-👉 Composite Score = Weighted aggregation
+ Composite Score = Weighted aggregation
 
 This aligns with modern prompt evaluation approaches where outputs are scored across multiple quality axes rather than a single metric ([Braintrust][1])
 
 ---
 
-### 🏆 Automatic Ranking & Selection
+### Automatic Ranking & Selection
 
 * Identifies best-performing prompt version
 * Computes average scores across runs
@@ -49,7 +49,7 @@ This aligns with modern prompt evaluation approaches where outputs are scored ac
 
 ---
 
-### 📈 Analytics & Observability
+### Analytics & Observability
 
 * Score trends across experiments
 * Latency tracking per version
@@ -58,7 +58,7 @@ This aligns with modern prompt evaluation approaches where outputs are scored ac
 
 ---
 
-### ⚡ Local LLM Integration (Ollama)
+### Local LLM Integration (Ollama)
 
 * Runs fully offline using local models
 * No dependency on external APIs
@@ -66,7 +66,7 @@ This aligns with modern prompt evaluation approaches where outputs are scored ac
 
 ---
 
-## 🧠 Why PromptLab Exists
+## Why PromptLab Exists
 
 Prompt engineering is inherently **non-deterministic and sensitive to small changes** in wording and structure ([Wikipedia][2])
 
@@ -83,7 +83,7 @@ This transforms prompt engineering into an **engineering discipline instead of g
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid id="archpromptlab"
 flowchart LR
@@ -100,7 +100,7 @@ H --> I[Frontend Dashboard]
 
 ---
 
-## 🧩 Tech Stack
+## Tech Stack
 
 ### Backend
 
@@ -120,7 +120,7 @@ H --> I[Frontend Dashboard]
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```id="promptlabstruct"
 PromptLab/
@@ -140,7 +140,7 @@ PromptLab/
 
 ---
 
-## ⚙️ Setup & Installation
+## Setup & Installation
 
 ### 1. Clone Repository
 
@@ -184,7 +184,7 @@ http://127.0.0.1:5500/frontend/index.html
 
 ---
 
-## 🧪 How It Works
+## How It Works
 
 1. Create a prompt
 2. Add multiple versions
@@ -201,7 +201,7 @@ The system:
 
 ---
 
-## 📊 Example Insight
+## Example Insight
 
 PromptLab reveals critical real-world behavior:
 
@@ -213,7 +213,7 @@ This aligns with research showing prompt performance depends on structure, conte
 
 ---
 
-## 🧠 Design Decisions
+## Design Decisions
 
 * **Batch DB commits** for consistency and performance
 * **LLM-as-a-judge scoring model** for scalable evaluation
@@ -234,7 +234,7 @@ This aligns with research showing prompt performance depends on structure, conte
 
 ---
 
-## 🏆 What Makes This Project Stand Out
+## What Makes This Project Stand Out
 
 Unlike typical LLM demos:
 
@@ -249,14 +249,14 @@ Unlike typical LLM demos:
 
 ---
 
-## 👨‍💻 Author
+## Author
 
 **Krishanu Deka**
 GitHub: https://github.com/krishanudeka
 
 ---
 
-## ⭐ Support
+## Support
 
 If you found this useful, consider giving it a ⭐ on GitHub.
 
